@@ -53,9 +53,15 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("store: open %s: %w", path, err)
 	}
-	// The daemon is the only writer (D17). Serialising on one connection
-	// removes SQLITE_BUSY entirely and makes BEGIN IMMEDIATE cheap.
-	db.SetMaxOpenConns(1)
+	// WAL supports many concurrent readers alongside one writer, so the pool
+	// holds several connections. A single connection would be simpler, but it
+	// deadlocks the moment any code queries while iterating an open cursor —
+	// the cursor holds the only connection and the query waits for it forever.
+	// That is a trap laid for every future caller, so the pool is sized to
+	// avoid it and write serialisation is left to BEGIN IMMEDIATE plus the
+	// busy timeout, which is what SQLite provides it for.
+	db.SetMaxOpenConns(8)
+	db.SetMaxIdleConns(8)
 
 	s := &Store{db: db, path: path}
 	if err := s.migrate(context.Background()); err != nil {
