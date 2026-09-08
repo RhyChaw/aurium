@@ -58,8 +58,8 @@ func (e *Engine) Query(ctx context.Context, s Subject, q string, k int) ([]Hit, 
 	}
 
 	type candidate struct {
-		ref  Ref
-		hit  Hit
+		ref Ref
+		hit Hit
 	}
 	var candidates []candidate
 	for rows.Next() {
