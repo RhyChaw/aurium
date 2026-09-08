@@ -1,0 +1,31 @@
+# Aurium derived image (§5.2 layer L1).
+#
+# Built once per (base image digest, host uid/gid, agent adapter) and shared
+# read-only across every container of that shape. Source code is never in an
+# image layer: it arrives as a bind-mounted worktree at an identical host path.
+FROM {{.BaseImage}}
+
+USER root
+
+# Tools every container needs regardless of language:
+#   git    the source of truth
+#   tmux   agents run in a session a human can attach to (D5)
+#   zstd   volume archives for snapshots (§6.2 step 4)
+#   bash   the login shell agents fall back to
+{{.PackageInstall}}
+
+# Bake the HOST uid/gid into the image so files the agent writes onto the
+# bind-mounted worktree are owned by the user on the host. Without this every
+# file an agent creates lands as root and the human cannot edit their own repo.
+COPY mkuser.sh /tmp/mkuser.sh
+RUN sh /tmp/mkuser.sh {{.UID}} {{.GID}} aurium && rm -f /tmp/mkuser.sh
+
+# The stdio->HTTP MCP shim every agent talks to (§4.1).
+COPY aurium-mcp /usr/local/bin/aurium-mcp
+RUN chmod 0755 /usr/local/bin/aurium-mcp
+
+{{.AgentLayer}}
+
+ENV HOME=/home/aurium
+USER aurium
+WORKDIR /home/aurium
