@@ -46,6 +46,10 @@ func (l *Local) Capabilities() Caps {
 		Checkpoint: false,
 		Sidecars:   false,
 		Snapshot:   false,
+		// No supervision: the local driver has no container to run tmux in,
+		// and spawning an interactive REPL on the user's own machine would be
+		// a surprise, not a feature.
+		Tmux: false,
 	}
 }
 

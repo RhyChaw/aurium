@@ -44,6 +44,11 @@ type Caps struct {
 	Sidecars   bool
 	// Snapshot is the ability to commit the rootfs to an image.
 	Snapshot bool
+	// Tmux means the runtime supervises long-lived interactive agents in a
+	// tmux session a human can attach to (D5). Drivers without it can still
+	// run headless agents through Exec; they simply have nothing to attach to,
+	// and Aurium must not try to spawn a REPL on the user's own machine.
+	Tmux bool
 }
 
 // Bind is a host directory mounted into the container. Aurium always mounts at

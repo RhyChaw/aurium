@@ -49,6 +49,7 @@ func (d *Docker) Capabilities() Caps {
 		Checkpoint: false,
 		Sidecars:   true,
 		Snapshot:   true,
+		Tmux:       true, // installed into every derived image (L1)
 	}
 }
 
