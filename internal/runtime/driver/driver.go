@@ -170,6 +170,11 @@ type Driver interface {
 	// copy-on-write on macOS, so this is a real copy and is documented as such
 	// (§1.1 finding 2).
 	CloneVolumes(ctx context.Context, from, to []VolumeMount) error
+	// ArchiveVolume writes a volume's contents to a compressed tarball on the
+	// host (§6.2 step 4).
+	ArchiveVolume(ctx context.Context, volume, destPath string) error
+	// RestoreVolume recreates a volume from such a tarball (§6.3 step 4).
+	RestoreVolume(ctx context.Context, volume, srcPath string) error
 
 	// EnsureNetwork creates the per-container bridge network if absent.
 	EnsureNetwork(ctx context.Context, name string) error

@@ -68,11 +68,12 @@ func Open(verbose bool) (*App, error) {
 			"podman": podman,
 			"local":  driver.NewLocal(),
 		},
-		Adapters:  agent.DefaultRegistry(),
-		Images:    &image.Builder{Bin: "docker", Verbose: verbose, MCPBinary: filepath.Join(home, "bin", "aurium-mcp")},
-		HomeRoot:  filepath.Join(home, "homes"),
-		AuriumURL: "http://host.docker.internal:7770",
-		DockerBin: "docker",
+		Adapters:     agent.DefaultRegistry(),
+		Images:       &image.Builder{Bin: "docker", Verbose: verbose, MCPBinary: filepath.Join(home, "bin", "aurium-mcp")},
+		HomeRoot:     filepath.Join(home, "homes"),
+		SnapshotHome: home,
+		AuriumURL:    "http://host.docker.internal:7770",
+		DockerBin:    "docker",
 	}
 
 	return &App{Store: st, Events: bus, Manager: mgr, Home: home}, nil

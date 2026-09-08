@@ -41,10 +41,16 @@ func Execute() error {
 		newExecCmd(),
 		newAttachCmd(),
 		newDestroyCmd(),
+		newSnapshotCmd(),
+		newRestoreCmd(),
+		newForkCmd(),
+		newStackCmd(),
 		newTaskCmd(),
 		newEventsCmd(),
 		newStatusCmd(),
 		newDoctorCmd(),
+		newDaemonCmd(),
+		newDashboardCmd(),
 		newVersionCmd(),
 	)
 	return root.Execute()
