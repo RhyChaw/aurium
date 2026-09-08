@@ -65,9 +65,12 @@ func New(o Options) (*Daemon, error) {
 		return nil, err
 	}
 
+	srv := api.New(a, token, o.Log)
+	srv.Gateway = a.Gateway
+
 	d := &Daemon{
 		App:        a,
-		Server:     api.New(a, token, o.Log),
+		Server:     srv,
 		Log:        o.Log,
 		Addr:       o.Addr,
 		SocketPath: filepath.Join(a.Home, "auriumd.sock"),
@@ -138,6 +141,12 @@ func (d *Daemon) Run(ctx context.Context) error {
 				errs <- err
 			}
 		}(l)
+	}
+
+	// Connect integrations before announcing readiness, so an agent's first
+	// tool call does not report an integration as disconnected.
+	if err := d.App.ConnectUpstreams(ctx, d.Log); err != nil {
+		d.Log.Warn("daemon: connecting integrations", "err", err)
 	}
 
 	go d.watcher.Run(ctx)

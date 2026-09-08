@@ -128,6 +128,12 @@ snapshot:
 		}
 	}
 
+	// Seed the default context permissions (§8.3). Without these every agent
+	// is denied everything, since context is default-deny.
+	if err := a.Context.SeedDefaults(ctx, p.ID); err != nil {
+		return wrap(CodeUsage, err)
+	}
+
 	if err := a.Events.Emit(ctx, events.Event{
 		Type: events.ProjectCreated, Actor: events.ActorHuman, ProjectID: p.ID,
 		Payload: map[string]any{"root": root, "base_branch": cfg.Project.BaseBranch},
