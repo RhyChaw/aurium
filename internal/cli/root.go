@@ -49,6 +49,8 @@ func Execute() error {
 		newEventsCmd(),
 		newStatusCmd(),
 		newDoctorCmd(),
+		newDaemonCmd(),
+		newDashboardCmd(),
 		newVersionCmd(),
 	)
 	return root.Execute()

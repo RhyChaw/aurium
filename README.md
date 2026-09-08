@@ -19,8 +19,8 @@ a container can be *stacked* on another and kept up to date by rebasing onto a
 | Phase | Scope | State |
 |---|---|---|
 | **A** | Runtime core: worktrees, guard hooks, drivers, recorded-base sync, adapters, CLI | **done** |
-| B | Daemon, HTTP API + SSE, snapshots, fork/stack, dashboard v0 | in progress |
-| C | Context engine, IPC, MCP gateway, delegation | planned |
+| **B** | Daemon, HTTP API + SSE, snapshots, fork/stack, dashboard v0 | **done** |
+| C | Context engine, IPC, MCP gateway, delegation | in progress |
 | D | Platform (Tauri, plugins, podman parity, cost) | out of scope |
 
 ## Quick start
@@ -36,6 +36,13 @@ cd ~/code/my-app
 
 # ... A moves ...
 ./bin/aurium sync B                     # replay B's own commits onto A's tip
+
+./bin/aurium snapshot A --label v1      # capture source, rootfs and volumes
+./bin/aurium restore A 1                # put it all back
+./bin/aurium stack C --on A             # a child that tracks A
+./bin/aurium fork A --branch A-copy     # an independent peer
+
+./bin/aurium dashboard                  # live web UI at 127.0.0.1:7770
 ./bin/aurium events                     # the audit trail behind all of it
 ```
 
@@ -76,8 +83,11 @@ internal/events/     event bus — audit log, dashboard feed, plugin surface
 internal/gitx/       git wrapper, worktrees, guard hooks
 internal/stack/      recorded-base rebase engine and the container forest
 internal/runtime/    driver interface (docker, local), image builder, manager
+internal/runtime/snapshot/  take, restore, fork, stack, retention
 internal/agent/      adapter interface: claude, codex, shell
 internal/config/     aurium.yaml
+internal/api/        HTTP API, SSE, embedded dashboard
+internal/daemon/     auriumd: listeners, watcher, reconcile
 internal/cli/        commands
 assets/              guard hooks, Dockerfile template, mkuser.sh
 ```

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurium</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>Aurium</h1>
+  <div class="meta">
+    <span id="project-name">—</span>
+    <span class="sep">·</span>
+    <span id="conn" class="conn conn-connecting">connecting</span>
+  </div>
+</header>
+
+<nav id="tabs">
+  <button class="tab is-active" data-panel="tree">Containers</button>
+  <button class="tab" data-panel="tasks">Tasks</button>
+  <button class="tab" data-panel="events">Events</button>
+</nav>
+
+<main>
+  <section id="panel-tree" class="panel is-active">
+    <div id="tree" class="tree"></div>
+    <p id="tree-empty" class="empty" hidden>
+      No containers yet. Create one with <code>aurium container create &lt;branch&gt;</code>.
+    </p>
+  </section>
+
+  <section id="panel-tasks" class="panel">
+    <table class="grid">
+      <thead><tr><th>Task</th><th>Status</th><th>Updated</th></tr></thead>
+      <tbody id="tasks"></tbody>
+    </table>
+    <p id="tasks-empty" class="empty" hidden>No tasks yet.</p>
+  </section>
+
+  <section id="panel-events" class="panel">
+    <div class="toolbar">
+      <input id="event-filter" type="search" placeholder="Filter by type or container…" autocomplete="off">
+      <label class="check"><input type="checkbox" id="autoscroll" checked> Follow</label>
+    </div>
+    <ol id="events" class="events" reversed></ol>
+  </section>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>
