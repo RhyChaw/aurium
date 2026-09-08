@@ -4,8 +4,10 @@ import "fmt"
 
 // Codex adapts OpenAI's Codex CLI.
 //
-// File locations verified against https://github.com/openai/codex (config.toml
-// and AGENTS.md) on 2026-09-08. Covered by the nightly adapter smoke job.
+// UNVERIFIED, exactly as for the claude adapter: the config.toml and AGENTS.md
+// locations below are written from memory, have not been checked against the
+// project's documentation, and no Codex process has ever been observed loading
+// them. No adapter smoke job exists.
 type Codex struct{}
 
 func (c *Codex) Name() string { return "codex" }

@@ -4,12 +4,18 @@ import "fmt"
 
 // Claude adapts Anthropic's Claude Code CLI.
 //
-// File locations and flags verified against
-// https://docs.claude.com/en/docs/claude-code/settings and
-// https://docs.claude.com/en/docs/claude-code/mcp on 2026-09-08.
-// The nightly "adapter smoke" CI job asserts the MCP server is still listed
-// by the agent, so a change upstream fails loudly rather than silently
-// disconnecting every container from Aurium (§15).
+// UNVERIFIED. The file locations and flags below are written from memory and
+// have NOT been checked against the published documentation, and no agent has
+// ever been observed loading them. §15 of the ERD requires a doc link with a
+// verification date and a nightly smoke job asserting the agent actually lists
+// the aurium MCP server; neither exists yet. Until they do, treat every path
+// here as a guess:
+//
+//	~/.claude/CLAUDE.md   import syntax and location unconfirmed
+//	~/.claude.json        mcpServers schema and location unconfirmed
+//	claude --continue     resume flag unconfirmed
+//
+// Tracked in docs/superpowers/plans/2026-09-08-aurium-phases-abc.md.
 type Claude struct{}
 
 func (c *Claude) Name() string { return "claude" }

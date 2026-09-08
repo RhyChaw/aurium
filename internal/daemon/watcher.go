@@ -68,6 +68,11 @@ func (w *Watcher) Run(ctx context.Context) {
 }
 
 // CheckParents marks children stale when their parent moves (§6.5).
+//
+// This path only reads git today. Anything here that starts to MUTATE a
+// worktree — auto-sync is the obvious next one — must take the container's
+// lease first (store.WithLease), because the CLI runs the same git operations
+// in the same worktrees from a separate process.
 func (w *Watcher) CheckParents(ctx context.Context) {
 	projects, err := w.App.Store.ListProjects(ctx)
 	if err != nil {
@@ -82,6 +87,13 @@ func (w *Watcher) CheckParents(ctx context.Context) {
 			if c.Status == store.ContainerArchived || c.Worktree == "" {
 				continue
 			}
+			// Skip a container somebody is actively rebasing: git state
+			// observed mid-rebase is a snapshot of a half-finished operation,
+			// and reporting it would flap the container's status.
+			if _, err := w.App.Store.GetLease(ctx, c.ID); err == nil {
+				continue
+			}
+
 			res, err := stack.CheckEligibility(ctx, gitx.New(c.Worktree), stack.Target{
 				Branch: c.Branch, ParentBranch: c.ParentBranch, BaseSHA: c.BaseSHA,
 			})
