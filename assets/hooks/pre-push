@@ -1,0 +1,12 @@
+#!/bin/sh
+# Aurium guard hook — D10: no git credentials ever enter a container, so a
+# push from inside one cannot succeed anyway. Failing here gives the agent a
+# useful message instead of a credential prompt or an opaque auth error.
+#
+# Pushing is a host-side operation: `aurium push <container>`.
+
+[ "$AURIUM_GUARD" = "1" ] || exit 0
+
+echo "aurium: pushing from inside a container is not allowed." >&2
+echo "aurium: run 'aurium push' on the host, which holds the credentials (D10)." >&2
+exit 1
