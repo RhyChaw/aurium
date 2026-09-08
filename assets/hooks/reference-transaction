@@ -1,0 +1,42 @@
+#!/bin/sh
+# Aurium guard hook — enforcement point for Invariant 1: "a child cannot
+# mutate a parent" (ERD §5.5).
+#
+# Every Aurium container shares the host's .git directory at an identical path,
+# which is what makes worktrees cheap and lets the host rebase a child's branch
+# without entering the container. The cost of sharing is that, without this
+# hook, any agent could move or delete any other agent's branch — the exact
+# collision Aurium exists to remove.
+#
+# git runs this hook for every ref update, in three phases: prepared, committed,
+# aborted. We veto during "prepared", which aborts the whole transaction
+# atomically, so a rejected update never lands even partially.
+#
+# The hook is inert unless AURIUM_GUARD=1, which only container environments
+# set (see gitx.ContainerEnv). The host keeps full control so that `aurium sync`
+# can rebase children and `aurium snapshot` can write refs/aurium/snap/*.
+
+[ "$AURIUM_GUARD" = "1" ] || exit 0
+[ "$1" = "prepared" ] || exit 0
+
+if [ -z "$AURIUM_BRANCH" ]; then
+	# Guarded but with no branch declared: fail closed. A misconfigured
+	# container must not get more privilege than a correctly configured one.
+	echo "aurium: AURIUM_GUARD=1 but AURIUM_BRANCH is unset; refusing all branch updates" >&2
+	exit 1
+fi
+
+while read -r old new ref; do
+	case "$ref" in
+	refs/heads/*)
+		branch=${ref#refs/heads/}
+		if [ "$branch" != "$AURIUM_BRANCH" ]; then
+			echo "aurium: refusing to update $ref from container branch '$AURIUM_BRANCH'." >&2
+			echo "aurium: a container may only move its own branch (Invariant 1)." >&2
+			exit 1
+		fi
+		;;
+	esac
+done
+
+exit 0
