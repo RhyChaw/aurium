@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/RhyChaw/aurium/internal/app"
+	"github.com/RhyChaw/aurium/internal/gateway"
 	"github.com/RhyChaw/aurium/internal/store"
 )
 
@@ -25,6 +26,10 @@ type Server struct {
 	// HostToken authenticates local clients (the CLI, the dashboard). It is
 	// written to ~/.aurium/token with mode 0600.
 	HostToken string
+
+	// Gateway serves the MCP endpoint containers talk to. Optional: without
+	// it /mcp reports itself unavailable rather than half-working.
+	Gateway *gateway.Gateway
 
 	mux *http.ServeMux
 }
@@ -85,6 +90,11 @@ func (s *Server) routes() {
 	s.handle("POST /v1/containers/{container}/sync", s.syncContainer, "")
 	s.handle("GET /v1/containers/{container}/agents", s.listAgents, "")
 	s.handle("PATCH /v1/tasks/{task}", s.patchTask, "task:*")
+	s.handle("GET /v1/approvals", s.listApprovals, "")
+	s.handle("POST /v1/approvals/{approval}/decide", s.decideApproval, "")
+
+	// The MCP endpoint every container reaches through the aurium-mcp shim.
+	s.handle("POST /mcp", s.handleMCP, "gateway:*")
 
 	// The dashboard, embedded so the daemon is one binary.
 	s.mux.Handle("GET /", s.dashboard())

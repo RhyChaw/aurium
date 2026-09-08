@@ -20,7 +20,7 @@ a container can be *stacked* on another and kept up to date by rebasing onto a
 |---|---|---|
 | **A** | Runtime core: worktrees, guard hooks, drivers, recorded-base sync, adapters, CLI | **done** |
 | **B** | Daemon, HTTP API + SSE, snapshots, fork/stack, dashboard v0 | **done** |
-| C | Context engine, IPC, MCP gateway, delegation | in progress |
+| **C** | Context engine, IPC, MCP gateway, delegation | **done** |
 | D | Platform (Tauri, plugins, podman parity, cost) | out of scope |
 
 ## Quick start
@@ -43,6 +43,19 @@ cd ~/code/my-app
 ./bin/aurium fork A --branch A-copy     # an independent peer
 
 ./bin/aurium dashboard                  # live web UI at 127.0.0.1:7770
+
+# Context agents share, versioned and permissioned
+./bin/aurium context set task/objective "Add OAuth with PKCE"
+./bin/aurium context query "token lifetime"
+
+# Capabilities, not credentials
+export GITHUB_TOKEN=...
+./bin/aurium integration connect github \
+    --mcp "npx -y @modelcontextprotocol/server-github" --secret-env GITHUB_TOKEN
+./bin/aurium integration capabilities github   # who may call what
+./bin/aurium integration grant github --deny B # revoke one container
+./bin/aurium approve                           # what is waiting on you
+
 ./bin/aurium events                     # the audit trail behind all of it
 ```
 
@@ -73,6 +86,18 @@ Docker Desktop and OrbStack, so a snapshot is (git tree, rootfs image, volume
 archives, context version). Agent *conversation* state survives anyway,
 because it lives in the container's `$HOME`.
 
+**One MCP server per agent.** Agents never reach an integration directly. One
+gateway means one place that decides what a given agent may do, one place that
+holds credentials, and one audit log. Ungranted tools are not listed at all and
+calling one is indistinguishable from calling a tool that does not exist — a
+tool an agent can see is a tool it will try.
+
+**Compare-and-set on context.** Agents share knowledge without silently
+overwriting each other: a writer states the version it read, and a stale write
+is refused with the current content attached so it can reconcile. Appends
+commute and need no version, which is why `append` is a separate, weaker
+permission.
+
 ## Layout
 
 ```
@@ -88,6 +113,11 @@ internal/agent/      adapter interface: claude, codex, shell
 internal/config/     aurium.yaml
 internal/api/        HTTP API, SSE, embedded dashboard
 internal/daemon/     auriumd: listeners, watcher, reconcile
+internal/contextengine/  versioned context, permissions, projection, search
+internal/ipc/        agent messaging
+internal/mcp/        JSON-RPC 2.0 + MCP, stdio server and client
+internal/gateway/    the single MCP server agents see: grants, approvals, audit
+internal/secrets/    keyring-backed credentials (never in the database)
 internal/cli/        commands
 assets/              guard hooks, Dockerfile template, mkuser.sh
 ```

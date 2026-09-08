@@ -51,6 +51,11 @@ func Execute() error {
 		newDoctorCmd(),
 		newDaemonCmd(),
 		newDashboardCmd(),
+		newContextCmd(),
+		newInboxCmd(),
+		newApproveCmd(false),
+		newApproveCmd(true),
+		newIntegrationCmd(),
 		newVersionCmd(),
 	)
 	return root.Execute()
