@@ -75,7 +75,7 @@ type Item struct {
 // without a second round trip — an agent that has to ask again is an agent
 // that will probably just retry blindly.
 type ErrStale struct {
-	Ref            Ref
+	Ref             Ref
 	ExpectedVersion int
 	CurrentVersion  int
 	CurrentContent  string

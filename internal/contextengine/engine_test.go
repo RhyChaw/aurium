@@ -96,9 +96,9 @@ func TestConcurrentWritesProduceExactlyOneWinner(t *testing.T) {
 
 	const writers = 8
 	var (
-		wg       sync.WaitGroup
-		mu       sync.Mutex
-		wins     int
+		wg        sync.WaitGroup
+		mu        sync.Mutex
+		wins      int
 		conflicts int
 	)
 	for i := 0; i < writers; i++ {
