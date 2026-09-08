@@ -550,3 +550,8 @@ func (m *Manager) startAgentResuming(ctx context.Context, c store.Container,
 func isUnsupported(err error) bool {
 	return errors.Is(err, driver.ErrUnsupported)
 }
+
+// execOptsFor builds driver exec options for a container's worktree.
+func execOptsFor(c store.Container) driver.ExecOpts {
+	return driver.ExecOpts{Workdir: c.Worktree}
+}
