@@ -21,8 +21,8 @@ func specFixture() Spec {
 			{Name: "aurium-app-implement-oauth-node_modules", Path: "/Users/alice/app/.aurium/wt/implement-oauth/node_modules"},
 			{Name: "aurium-npm-cache", Path: "/home/aurium/.npm", Shared: true},
 		},
-		Ports:  []PortSpec{{Internal: 3000, Env: "PORT"}},
-		Labels: map[string]string{LabelContainer: "c_01J", LabelProject: "p_01J"},
+		Ports:     []PortSpec{{Internal: 3000, Env: "PORT"}},
+		Labels:    map[string]string{LabelContainer: "c_01J", LabelProject: "p_01J"},
 		Resources: Resources{CPUs: 2, Memory: "2g", PIDs: 2048},
 	}
 }
