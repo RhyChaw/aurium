@@ -106,3 +106,16 @@ func (s *Store) DeleteAgent(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM agents WHERE id = ?`, id)
 	return err
 }
+
+// SetAgentParent links an agent to the agent that delegated it. It is set
+// after the agent starts rather than at creation, because starting is what
+// enforces "one interactive agent per container" and must see the real set of
+// agents in the container.
+func (s *Store) SetAgentParent(ctx context.Context, id, parentAgentID string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE agents SET parent_agent_id = ? WHERE id = ?`, nullable(parentAgentID), id)
+	if err != nil {
+		return err
+	}
+	return mustAffect(res, "agent", id)
+}

@@ -70,94 +70,94 @@ const (
 
 // Project is a repository root Aurium manages.
 type Project struct {
-	ID        string
-	Name      string
-	Root      string
-	CreatedAt string
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Root      string `json:"root"`
+	CreatedAt string `json:"created_at"`
 }
 
 // Repository is a git repository inside a project. The data model allows
 // several per project (§2 non-goals: the runtime does not yet).
 type Repository struct {
-	ID         string
-	ProjectID  string
-	Path       string
-	BaseBranch string
-	Remote     string
+	ID         string `json:"id"`
+	ProjectID  string `json:"project_id"`
+	Path       string `json:"path"`
+	BaseBranch string `json:"base_branch"`
+	Remote     string `json:"remote"`
 }
 
 // Task is a unit of work, optionally nested under a parent task.
 type Task struct {
-	ID           string
-	ProjectID    string
-	Title        string
-	Status       string
-	ParentTaskID string
-	CreatedAt    string
-	UpdatedAt    string
+	ID           string `json:"id"`
+	ProjectID    string `json:"project_id"`
+	Title        string `json:"title"`
+	Status       string `json:"status"`
+	ParentTaskID string `json:"parent_task_id"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
 }
 
 // Container is the fundamental Aurium unit: a worktree, a rootfs, volumes,
 // a branch, a recorded base, and the agents running inside it.
 type Container struct {
-	ID                string
-	ProjectID         string
-	TaskID            string
-	RepoID            string
-	Branch            string
-	Slug              string
-	ParentContainerID string
+	ID                string `json:"id"`
+	ProjectID         string `json:"project_id"`
+	TaskID            string `json:"task_id"`
+	RepoID            string `json:"repo_id"`
+	Branch            string `json:"branch"`
+	Slug              string `json:"slug"`
+	ParentContainerID string `json:"parent_container_id"`
 	// ParentBranch is the git parent this container rebases onto; it may be
 	// the repository base branch for a root container.
-	ParentBranch     string
-	OriginSnapshotID string
-	OriginKind       string
+	ParentBranch     string `json:"parent_branch"`
+	OriginSnapshotID string `json:"origin_snapshot_id"`
+	OriginKind       string `json:"origin_kind"`
 	// BaseSHA is the recorded base (D6): the parent commit this container was
 	// last rebased onto. The whole sync engine is built on it.
-	BaseSHA        string
-	PendingBaseSHA string
-	HeadSHA        string
-	Driver         string
-	RuntimeID      string
-	Image          string
-	Worktree       string
-	Ports          map[int]int
-	Network        string
-	Status         string
-	LastError      string
-	CreatedAt      string
-	UpdatedAt      string
+	BaseSHA        string      `json:"base_sha"`
+	PendingBaseSHA string      `json:"pending_base_sha"`
+	HeadSHA        string      `json:"head_sha"`
+	Driver         string      `json:"driver"`
+	RuntimeID      string      `json:"runtime_id"`
+	Image          string      `json:"image"`
+	Worktree       string      `json:"worktree"`
+	Ports          map[int]int `json:"ports"`
+	Network        string      `json:"network"`
+	Status         string      `json:"status"`
+	LastError      string      `json:"last_error"`
+	CreatedAt      string      `json:"created_at"`
+	UpdatedAt      string      `json:"updated_at"`
 }
 
 // Snapshot is the §6.1 record: git tree + rootfs image + volume archives +
 // context version, taken while the container was paused.
 type Snapshot struct {
-	ID             string
-	ContainerID    string
-	Seq            int
-	Label          string
-	Trigger        string
-	HeadSHA        string
-	TreeRef        string
-	BaseSHA        string
-	ImageRef       string
-	ManifestPath   string
-	ContextVersion int
-	Bytes          int64
-	CreatedAt      string
+	ID             string `json:"id"`
+	ContainerID    string `json:"container_id"`
+	Seq            int    `json:"seq"`
+	Label          string `json:"label"`
+	Trigger        string `json:"trigger"`
+	HeadSHA        string `json:"head_sha"`
+	TreeRef        string `json:"tree_ref"`
+	BaseSHA        string `json:"base_sha"`
+	ImageRef       string `json:"image_ref"`
+	ManifestPath   string `json:"manifest_path"`
+	ContextVersion int    `json:"context_version"`
+	Bytes          int64  `json:"bytes"`
+	CreatedAt      string `json:"created_at"`
 }
 
 // Agent is one agent process in a container. D15: one interactive agent per
 // container, so at most one row here has an interactive status.
 type Agent struct {
-	ID             string
-	ContainerID    string
-	Adapter        string
-	Role           string
-	ParentAgentID  string
-	TmuxSession    string
-	Model          string
-	Status         string
-	StartedAt      string
-	LastActivityAt string
+	ID             string `json:"id"`
+	ContainerID    string `json:"container_id"`
+	Adapter        string `json:"adapter"`
+	Role           string `json:"role"`
+	ParentAgentID  string `json:"parent_agent_id"`
+	TmuxSession    string `json:"tmux_session"`
+	Model          string `json:"model"`
+	Status         string `json:"status"`
+	StartedAt      string `json:"started_at"`
+	LastActivityAt string `json:"last_activity_at"`
 }

@@ -9,7 +9,9 @@ package ids
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"strings"
 	"sync"
 	"time"
@@ -176,4 +178,11 @@ func Time(id string) time.Time {
 // timestamp column in the database (§7). Nothing else should format times.
 func Now() string {
 	return time.Now().UTC().Format(time.RFC3339Nano)
+}
+
+// HashHex returns a short hex digest, used to record the shape of a payload in
+// an audit log without recording the payload itself.
+func HashHex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:8])
 }

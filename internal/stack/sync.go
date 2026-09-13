@@ -78,6 +78,8 @@ type Result struct {
 	ParentTip string
 	// Replayed is how many of the child's own commits were rebased.
 	Replayed int
+	// Behind is how many commits the parent has gained since the recorded base.
+	Behind int
 	// ConflictedFiles tells an agent exactly where to look.
 	ConflictedFiles []string
 	// Plan is the command a dry run would have executed.
@@ -133,6 +135,12 @@ func CheckEligibility(ctx context.Context, g *gitx.Git, t Target) (Result, error
 	}
 
 	res.Eligibility = Eligible
+	// How many commits the parent has gained since this child's recorded base.
+	// The watcher puts this in its notification and the dashboard shows it, so
+	// it must be the real number rather than a placeholder.
+	if out, err := g.Run(ctx, "rev-list", "--count", t.BaseSHA+".."+parentTip); err == nil {
+		fmt.Sscanf(out, "%d", &res.Behind)
+	}
 	res.Plan = fmt.Sprintf("git rebase --onto %s %s %s", short(parentTip), short(t.BaseSHA), t.Branch)
 	return res, nil
 }

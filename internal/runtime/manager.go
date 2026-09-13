@@ -9,6 +9,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,6 +38,9 @@ type Manager struct {
 	// $HOME inside their rootfs, which is what makes agent transcripts part of
 	// a snapshot.
 	HomeRoot string
+
+	// SnapshotHome is ~/.aurium, under which snapshot archives are stored.
+	SnapshotHome string
 
 	// AuriumURL is what containers use to reach the daemon.
 	AuriumURL string
@@ -521,4 +525,33 @@ func (m *Manager) Destroy(ctx context.Context, containerID string, o DestroyOpts
 			"branch": c.Branch, "deleted_branch": o.DeleteBranch, "archived": o.Archive,
 		},
 	})
+}
+
+// agentProjection builds the Projection an adapter's Prepare receives.
+func agentProjection(m *Manager, c store.Container, home string) agent.Projection {
+	return agent.Projection{
+		Home:        home,
+		ContextPath: filepath.Join(c.Worktree, gitx.AuriumDir, "CONTEXT.md"),
+		MCPCommand:  "aurium-mcp",
+		AuriumURL:   m.AuriumURL,
+	}
+}
+
+// startAgentResuming starts an agent, optionally continuing its previous
+// conversation. Resume is what makes restore useful: the transcript lives in
+// $HOME, which the captured rootfs restored.
+func (m *Manager) startAgentResuming(ctx context.Context, c store.Container,
+	adapterName, role string, resume bool) (store.Agent, error) {
+	return m.startAgent(ctx, c, adapterName, role, "", agent.StartOpts{Resume: resume})
+}
+
+// isUnsupported reports whether err is a driver capability gap rather than a
+// real failure, so callers can degrade instead of aborting.
+func isUnsupported(err error) bool {
+	return errors.Is(err, driver.ErrUnsupported)
+}
+
+// execOptsFor builds driver exec options for a container's worktree.
+func execOptsFor(c store.Container) driver.ExecOpts {
+	return driver.ExecOpts{Workdir: c.Worktree}
 }

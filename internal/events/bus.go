@@ -73,6 +73,11 @@ type Bus struct {
 
 	mu   sync.RWMutex
 	subs map[*subscriber]struct{}
+
+	// published is the highest event id already fanned out, so the tailer
+	// (tail.go) never re-delivers what this process emitted itself.
+	publishedMu sync.Mutex
+	published   int64
 }
 
 // New returns a bus backed by a store.
@@ -122,6 +127,9 @@ func (b *Bus) EmitReturning(ctx context.Context, e Event) (Event, error) {
 		e.ID = id
 	}
 
+	// Record before fanning out, so the tailer cannot pick this id up and
+	// deliver it a second time.
+	b.markPublished(e.ID)
 	b.fanout(e)
 	return e, nil
 }

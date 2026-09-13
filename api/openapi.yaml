@@ -1,0 +1,291 @@
+openapi: 3.1.0
+info:
+  title: Aurium daemon API
+  version: 0.1.0-dev
+  description: |
+    D21: this API is the product boundary. The CLI, the embedded dashboard, a
+    Tauri shell and a future cloud runtime are all clients of it, so anything
+    only one client can do is a design mistake.
+
+    This document is kept in step with the code by a test
+    (internal/api/openapi_test.go) that fails when a route is registered
+    without being described here, or described without being registered.
+
+servers:
+  - url: http://127.0.0.1:7770
+    description: Loopback only. The daemon is per-user and never binds a public address.
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Host clients read ~/.aurium/token (mode 0600). Containers present a
+        scoped token that may only act on their own container; scopes are
+        context:*, ipc:*, task:*, snapshot:self and gateway:*.
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+    Project:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        root: { type: string }
+        created_at: { type: string, format: date-time }
+    Container:
+      type: object
+      properties:
+        id: { type: string }
+        branch: { type: string }
+        parent_branch: { type: string }
+        base_sha:
+          type: string
+          description: The recorded base (D6) this container was last rebased onto.
+        status: { type: string }
+        worktree: { type: string }
+        ports:
+          type: object
+          additionalProperties: { type: integer }
+    Task:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        status:
+          type: string
+          enum: [created, planning, running, blocked, review, pr_ready, merged, completed, archived]
+    Snapshot:
+      type: object
+      properties:
+        id: { type: string }
+        seq: { type: integer }
+        label: { type: string }
+        trigger: { type: string }
+        head_sha: { type: string }
+    Approval:
+      type: object
+      properties:
+        id: { type: string }
+        capability: { type: string }
+        status:
+          type: string
+          enum: [pending, approved, rejected, expired]
+        expires_at: { type: string, format: date-time }
+
+paths:
+  /v1/health:
+    get:
+      summary: Liveness
+      description: |
+        Deliberately unauthenticated: the CLI polls it to decide whether the
+        daemon it just spawned is up, before it has read a token.
+      security: []
+      responses:
+        "200": { description: The daemon is running }
+
+  /v1/events:
+    get:
+      summary: Server-sent event stream
+      description: |
+        Replays from `since` before the live stream resumes, so a reconnecting
+        client neither misses nor duplicates events. Frames carry no `event:`
+        field — the type is in the JSON payload, because a typed SSE event can
+        only be received through a per-type listener and the set of Aurium
+        event types is open.
+
+        This route alone also accepts the token as a query parameter, because
+        EventSource cannot set request headers.
+      parameters:
+        - { name: since, in: query, schema: { type: integer } }
+        - { name: types, in: query, schema: { type: string } }
+        - { name: container, in: query, schema: { type: string } }
+        - { name: token, in: query, schema: { type: string } }
+      responses:
+        "200": { description: text/event-stream }
+
+  /v1/projects:
+    get:
+      summary: List projects
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projects: { type: array, items: { $ref: "#/components/schemas/Project" } }
+
+  /v1/projects/{project}/containers:
+    get:
+      summary: List a project's containers
+      parameters: [{ name: project, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK }
+
+  /v1/projects/{project}/tasks:
+    get:
+      summary: List tasks
+      parameters: [{ name: project, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK }
+    post:
+      summary: Create a task
+      description: Requires the task:* scope.
+      parameters: [{ name: project, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string }
+                parent_task_id: { type: string }
+      responses:
+        "201": { description: Created }
+        "403": { description: The token lacks task:* }
+
+  /v1/projects/{project}/tree:
+    get:
+      summary: The container forest with live sync status
+      description: |
+        Sync status is recomputed from git per request rather than read from
+        the stored status, which can be seconds out of date.
+      parameters: [{ name: project, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK }
+
+  /v1/containers/{container}:
+    get:
+      summary: Get a container
+      description: |
+        A container-scoped token may only address its own container; any other
+        returns 403.
+      parameters: [{ name: container, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK }
+        "403": { description: This token is scoped to a different container }
+        "404": { description: Not found }
+
+  /v1/containers/{container}/agents:
+    get:
+      summary: List a container's agents
+      parameters: [{ name: container, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK }
+
+  /v1/containers/{container}/snapshots:
+    get:
+      summary: List a container's snapshots
+      parameters: [{ name: container, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK }
+
+  /v1/containers/{container}/snapshot:
+    post:
+      summary: Take a snapshot
+      description: Requires snapshot:self, which does not permit snapshotting another container.
+      parameters: [{ name: container, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { label: { type: string } }
+      responses:
+        "201": { description: Created }
+
+  /v1/containers/{container}/sync:
+    post:
+      summary: Rebase a container onto its parent's tip
+      description: |
+        A conflict is a normal outcome and returns 200 with result "conflict"
+        and the conflicted files, not an error status.
+      parameters: [{ name: container, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: The outcome, including conflicts }
+
+  /v1/tasks/{task}:
+    patch:
+      summary: Transition a task
+      parameters: [{ name: task, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { status: { type: string } }
+      responses:
+        "200": { description: OK }
+        "400": { description: Unknown status }
+
+  /v1/approvals:
+    get:
+      summary: List approvals
+      description: Defaults to pending, which is the inbox a human actually wants.
+      parameters: [{ name: status, in: query, schema: { type: string } }]
+      responses:
+        "200": { description: OK }
+
+  /v1/approvals/{approval}/decide:
+    post:
+      summary: Approve or reject a held call
+      description: |
+        Approving EXECUTES the held upstream call in the daemon, which is why
+        this cannot be done in the CLI process: only the daemon holds the
+        connected upstreams and their credentials (D17). The result is
+        delivered to the agent as a RESPONSE message, not returned here.
+      parameters: [{ name: approval, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [approved, rejected] }
+                by: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Approval" }
+
+  /mcp:
+    post:
+      summary: MCP endpoint reached by the in-container aurium-mcp shim
+      description: |
+        The caller is derived entirely from the bearer token, never from the
+        request body, and the agent's role is read from the database — an
+        agent cannot promote itself by claiming a role in the payload.
+
+        JSON-RPC errors travel inside a 200 so the shim hands the agent an
+        error it can act on rather than reporting a broken transport. A
+        notification returns 202 with no body.
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: A JSON-RPC response, possibly carrying an error object }
+        "202": { description: A notification was accepted }
+        "403": { description: The token lacks gateway:* }
+
+  /:
+    get:
+      summary: The embedded dashboard
+      description: |
+        Served with the host token injected as a meta tag and Cache-Control
+        no-store, since the page carries a credential.
+      security: []
+      responses:
+        "200": { description: text/html }

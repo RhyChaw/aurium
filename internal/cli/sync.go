@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/RhyChaw/aurium/internal/app"
@@ -65,11 +66,28 @@ func newSyncCmd() *cobra.Command {
 				}
 
 				exit := 0
+				holder := store.HolderID("cli")
+
 				for _, c := range targets {
-					res, err := stack.Sync(ctx, gitx.New(c.Worktree), stack.Target{
-						Branch: c.Branch, ParentBranch: c.ParentBranch, BaseSHA: c.BaseSHA,
-					}, stack.Options{DryRun: dryRun, Autostash: autostash, Force: force})
+					// The daemon's watcher rebases worktrees too. Without this
+					// lease both processes can run git in the same worktree at
+					// the same moment, which corrupts it in ways git cannot
+					// recover from.
+					var res stack.Result
+					err := a.Store.WithLease(ctx, c.ID, holder, "sync", func() error {
+						var serr error
+						res, serr = stack.Sync(ctx, gitx.New(c.Worktree), stack.Target{
+							Branch: c.Branch, ParentBranch: c.ParentBranch, BaseSHA: c.BaseSHA,
+						}, stack.Options{DryRun: dryRun, Autostash: autostash, Force: force})
+						return serr
+					})
 					if err != nil {
+						var held *store.ErrLeaseHeld
+						if errors.As(err, &held) {
+							return exitf(CodeLocked,
+								"%s is busy: %s is running %q. Wait for it to finish, or stop it.",
+								c.Branch, held.Holder, held.Operation)
+						}
 						return wrap(CodeGit, err)
 					}
 

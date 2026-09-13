@@ -13,11 +13,15 @@ import (
 
 	"github.com/RhyChaw/aurium/internal/agent"
 	"github.com/RhyChaw/aurium/internal/config"
+	"github.com/RhyChaw/aurium/internal/contextengine"
 	"github.com/RhyChaw/aurium/internal/events"
+	"github.com/RhyChaw/aurium/internal/gateway"
 	"github.com/RhyChaw/aurium/internal/gitx"
+	"github.com/RhyChaw/aurium/internal/ipc"
 	"github.com/RhyChaw/aurium/internal/runtime"
 	"github.com/RhyChaw/aurium/internal/runtime/driver"
 	"github.com/RhyChaw/aurium/internal/runtime/image"
+	"github.com/RhyChaw/aurium/internal/secrets"
 	"github.com/RhyChaw/aurium/internal/store"
 )
 
@@ -26,6 +30,10 @@ type App struct {
 	Store   *store.Store
 	Events  *events.Bus
 	Manager *runtime.Manager
+	Context *contextengine.Engine
+	IPC     *ipc.Bus
+	Gateway *gateway.Gateway
+	Secrets *secrets.Store
 	Home    string
 }
 
@@ -68,14 +76,89 @@ func Open(verbose bool) (*App, error) {
 			"podman": podman,
 			"local":  driver.NewLocal(),
 		},
-		Adapters:  agent.DefaultRegistry(),
-		Images:    &image.Builder{Bin: "docker", Verbose: verbose, MCPBinary: filepath.Join(home, "bin", "aurium-mcp")},
-		HomeRoot:  filepath.Join(home, "homes"),
-		AuriumURL: "http://host.docker.internal:7770",
-		DockerBin: "docker",
+		Adapters:     agent.DefaultRegistry(),
+		Images:       &image.Builder{Bin: "docker", Verbose: verbose, MCPBinary: filepath.Join(home, "bin", "aurium-mcp")},
+		HomeRoot:     filepath.Join(home, "homes"),
+		SnapshotHome: home,
+		AuriumURL:    "http://host.docker.internal:7770",
+		DockerBin:    "docker",
 	}
 
-	return &App{Store: st, Events: bus, Manager: mgr, Home: home}, nil
+	cx := contextengine.New(st, bus)
+	msgs := ipc.New(st, bus, &tmuxNudger{mgr: mgr, store: st})
+	gw := gateway.New(st, bus, cx, msgs)
+	gw.Snapshots = &managerSnapshots{mgr: mgr, app: nil}
+
+	a := &App{
+		Store: st, Events: bus, Manager: mgr,
+		Context: cx, IPC: msgs, Gateway: gw,
+		Secrets: secrets.New(&secrets.FileFallback{Path: filepath.Join(home, "secrets")}),
+		Home:    home,
+	}
+	// The snapshot and delegation adapters need the app to resolve a
+	// project's config, so they are attached once it exists.
+	gw.Snapshots = &managerSnapshots{mgr: mgr, app: a}
+	gw.Delegator = &runtime.Delegation{
+		Manager: mgr, IPC: msgs, MaxDepth: 1,
+		Config: a.ConfigForProject,
+	}
+	return a, nil
+}
+
+// ConfigForProject loads a project's aurium.yaml.
+func (a *App) ConfigForProject(ctx context.Context, projectID string) (*config.Config, error) {
+	p, err := a.Store.GetProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	return config.Load(filepath.Join(p.Root, config.Filename))
+}
+
+// managerSnapshots lets an agent snapshot its own container through the
+// gateway, resolving the project config the manager needs.
+type managerSnapshots struct {
+	mgr *runtime.Manager
+	app *App
+}
+
+func (m *managerSnapshots) SnapshotContainer(ctx context.Context, containerID, label string) (store.Snapshot, error) {
+	c, err := m.mgr.Store.GetContainer(ctx, containerID)
+	if err != nil {
+		return store.Snapshot{}, err
+	}
+	cfg, err := m.app.ConfigForProject(ctx, c.ProjectID)
+	if err != nil {
+		return store.Snapshot{}, err
+	}
+	return m.mgr.Snapshot(ctx, containerID, cfg, label, "manual")
+}
+
+// tmuxNudger delivers IPC nudges into a container's agent session.
+type tmuxNudger struct {
+	mgr   *runtime.Manager
+	store *store.Store
+}
+
+func (t *tmuxNudger) Nudge(ctx context.Context, containerID, text string) error {
+	c, err := t.store.GetContainer(ctx, containerID)
+	if err != nil {
+		return err
+	}
+	drv, err := t.mgr.Drivers.Get(c.Driver)
+	if err != nil {
+		return err
+	}
+	// A driver without session supervision has nothing to nudge. That is not
+	// an error: the message is still in the inbox and will be read.
+	if !drv.Capabilities().Tmux || c.RuntimeID == "" {
+		return nil
+	}
+	agents, err := t.store.ListLiveAgents(ctx, containerID)
+	if err != nil || len(agents) == 0 {
+		return nil
+	}
+	session := &agent.Session{Driver: drv, ContainerID: c.RuntimeID, Name: agents[0].TmuxSession}
+	return session.Nudge(ctx, text)
 }
 
 func (a *App) Close() error { return a.Store.Close() }
