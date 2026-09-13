@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "daemon-page",
+  "description": "Once the window navigates to the daemon, its dashboard needs permission to raise a notification when an agent is blocked on an approval. Nothing else is granted to the remote origin.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:7770", "http://localhost:7770"]
+  },
+  "permissions": ["notification:default"]
+}

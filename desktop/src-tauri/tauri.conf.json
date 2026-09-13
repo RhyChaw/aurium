@@ -1,0 +1,29 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Aurium",
+  "version": "0.1.0",
+  "identifier": "dev.aurium.desktop",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Aurium",
+        "width": 1100,
+        "height": 740,
+        "minWidth": 700,
+        "minHeight": 520
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:7770 http://localhost:7770"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"]
+  }
+}
