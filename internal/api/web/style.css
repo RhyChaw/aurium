@@ -192,3 +192,93 @@ main { padding: 1.25rem; max-width: 1100px; }
   .ev-type { flex: 0 0 auto; }
   .events li { flex-wrap: wrap; gap: 0.4rem; }
 }
+
+/* ---- approvals (§11.3) ----
+   A pending approval is an agent sitting blocked, so this panel leads and the
+   count is visible from any tab. */
+.count {
+  background: #d8b24a; color: #17130a; border-radius: 9px;
+  padding: 0 6px; font: 600 11px var(--mono, monospace);
+  min-width: 18px; display: inline-block; text-align: center;
+}
+.lede { margin: 0 0 14px; opacity: .7; font-size: 13px; max-width: 62ch; }
+.cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.card {
+  border: 1px solid currentColor; border-color: rgba(128,128,128,.28);
+  border-radius: 10px; padding: 13px 14px; display: grid; gap: 10px;
+}
+.card-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.cap { font: 13px var(--mono, monospace); color: #d8b24a; word-break: break-all; }
+.expiry { font: 11px var(--mono, monospace); opacity: .6; white-space: nowrap; }
+.expiry.soon { color: #e0a33c; opacity: 1; }
+.card-sub { font: 11px var(--mono, monospace); opacity: .55; word-break: break-all; }
+.actions { display: flex; gap: 8px; }
+button.act {
+  appearance: none; border-radius: 7px; padding: 7px 14px;
+  font: 600 12px inherit; cursor: pointer; border: 1px solid transparent;
+}
+button.act[disabled] { opacity: .5; cursor: default; }
+.approve { background: #4ec98a; color: #07190f; }
+.reject { background: transparent; color: inherit; border-color: rgba(128,128,128,.34); }
+.reject:hover:not([disabled]) { border-color: #e2686b; color: #e2686b; }
+
+/* ---- container graph ----
+   Lineage is the point of this product (snapshot, fork, stack), so the tree is
+   drawn as a graph with real connectors rather than indented text. The gutter
+   is one SVG per row: verticals for ancestors that still have siblings below,
+   an elbow into this node, and a dot coloured by sync state. */
+.split { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+@media (max-width: 880px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.split-left { min-width: 0; }
+
+.tree { display: grid; gap: 0; }
+.node {
+  display: flex; align-items: center; gap: 9px;
+  padding: 0 8px 0 0; min-height: 44px; border-radius: 8px;
+  cursor: pointer; border: 1px solid transparent;
+}
+.node:hover { background: rgba(128,128,128,.07); }
+.node.is-selected { background: rgba(216,178,74,.10); border-color: rgba(216,178,74,.45); }
+.gutter { flex: 0 0 auto; align-self: stretch; }
+.gutter line { stroke: rgba(128,128,128,.34); stroke-width: 1.5; }
+.gutter circle { stroke: #0d0d0f; stroke-width: 2; }
+.dot-clean { fill: #4ec98a; }
+.dot-behind, .dot-ahead, .dot-diverged { fill: #e0a33c; }
+.dot-conflict, .dot-error { fill: #e2686b; }
+.dot-unknown { fill: #8d8d97; }
+.node-agents { font: 11px var(--mono, monospace); opacity: .6; }
+.agent-chip {
+  font: 10px var(--mono, monospace); padding: 1px 6px; border-radius: 20px;
+  border: 1px solid rgba(128,128,128,.3); margin-left: 4px;
+}
+.agent-chip.is-running { border-color: #2c5a41; color: #4ec98a; }
+.spacer { flex: 1 1 auto; }
+
+/* ---- detail ---- */
+.detail {
+  border: 1px solid rgba(128,128,128,.22); border-radius: 10px;
+  padding: 13px 14px; display: grid; gap: 12px; align-content: start;
+  position: sticky; top: 0;
+}
+.detail h3 { margin: 0; font: 13px var(--mono, monospace); word-break: break-all; }
+.detail .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font: 11px var(--mono, monospace); }
+.detail .kv dt { opacity: .5; }
+.detail .kv dd { margin: 0; word-break: break-all; }
+.detail h4 {
+  margin: 6px 0 0; font: 10px var(--mono, monospace);
+  letter-spacing: .14em; text-transform: uppercase; opacity: .5;
+}
+.snap { font: 11px var(--mono, monospace); display: flex; gap: 8px; padding: 3px 0; border-top: 1px solid rgba(128,128,128,.14); }
+.snap-seq { opacity: .5; flex: 0 0 auto; }
+.snap-label { flex: 1 1 auto; word-break: break-all; }
+.snap-trigger { opacity: .5; flex: 0 0 auto; }
+.detail .actions { flex-wrap: wrap; }
+
+kbd {
+  font: 10px var(--mono, monospace); border: 1px solid rgba(128,128,128,.3);
+  border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; opacity: .6;
+}
+.hint-bar { margin: 14px 0 0; font-size: 11px; opacity: .45; display: flex; gap: 14px; flex-wrap: wrap; }

@@ -17,17 +17,36 @@
 </header>
 
 <nav id="tabs">
-  <button class="tab is-active" data-panel="tree">Containers</button>
+  <button class="tab is-active" data-panel="approvals">
+    Approvals <span id="approval-count" class="count" hidden>0</span>
+  </button>
+  <button class="tab" data-panel="tree">Containers</button>
   <button class="tab" data-panel="tasks">Tasks</button>
   <button class="tab" data-panel="events">Events</button>
 </nav>
 
 <main>
-  <section id="panel-tree" class="panel is-active">
-    <div id="tree" class="tree"></div>
-    <p id="tree-empty" class="empty" hidden>
-      No containers yet. Create one with <code>aurium container create &lt;branch&gt;</code>.
+  <section id="panel-approvals" class="panel is-active">
+    <p class="lede">
+      An agent asked for a capability it does not hold. Approving executes the
+      held call inside the daemon and hands the agent the result.
     </p>
+    <ul id="approvals" class="cards"></ul>
+    <p id="approvals-empty" class="empty" hidden>Nothing waiting. No agent is blocked.</p>
+  </section>
+
+  <section id="panel-tree" class="panel">
+    <div class="split">
+      <div class="split-left">
+        <div id="tree" class="tree"></div>
+        <p id="tree-empty" class="empty" hidden>
+          No containers yet. Create one with <code>aurium container create &lt;branch&gt;</code>.
+        </p>
+      </div>
+      <aside id="detail" class="detail">
+        <p class="empty">Select a container to see its agents and snapshots.</p>
+      </aside>
+    </div>
   </section>
 
   <section id="panel-tasks" class="panel">
@@ -46,6 +65,14 @@
     <ol id="events" class="events" reversed></ol>
   </section>
 </main>
+
+<p class="hint-bar">
+  <span><kbd>1</kbd>–<kbd>4</kbd> panels</span>
+  <span><kbd>a</kbd> approve top</span>
+  <span><kbd>x</kbd> reject top</span>
+  <span><kbd>j</kbd>/<kbd>k</kbd> containers</span>
+  <span><kbd>r</kbd> refresh</span>
+</p>
 
 <script src="/app.js"></script>
 </body>
