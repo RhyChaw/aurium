@@ -34,6 +34,11 @@ type Server struct {
 	Gateway *gateway.Gateway
 
 	mux *http.ServeMux
+
+	// prs caches pull-request lookups. The rail repaints on every event and
+	// GitHub has a rate limit; a badge that is a minute stale is useful, one
+	// that costs a round trip per repaint is not.
+	prs prCache
 }
 
 // contextKey namespaces values this package puts on a request context.
@@ -110,6 +115,14 @@ func (s *Server) routes() {
 	s.handle("POST /v1/providers", s.connectProvider, "")
 	s.handle("GET /v1/providers/detect", s.detectProviders, "")
 	s.handle("DELETE /v1/providers/{account}", s.disconnectProvider, "")
+	// GitHub: what repositories you have, putting one in a project, and what
+	// became of an agent's branch. Host-only — an agent reaches GitHub through
+	// the MCP gateway under a grant (§10), which is a different path with
+	// different rules.
+	s.handle("GET /v1/github", s.githubStatus, "")
+	s.handle("GET /v1/github/repos", s.listGitHubRepos, "")
+	s.handle("POST /v1/projects/{project}/github/clone", s.cloneGitHubRepo, "")
+	s.handle("POST /v1/projects/{project}/github/tools", s.enableGitHubTools, "")
 	s.handle("GET /v1/usage", s.usageReport, "")
 	s.handle("GET /v1/usage/series", s.usageSeries, "")
 	s.handle("GET /v1/heartbeat", s.heartbeat, "")

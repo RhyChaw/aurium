@@ -80,6 +80,9 @@ cd ~/work/api && ./bin/aurium init     # joins the project above, not a new one
 ./bin/aurium provider connect openai --from-cli-login --kind subscription
 ./bin/aurium usage --window 24h --by agent
 
+# GitHub: if `gh` is logged in, there is nothing to connect.
+gh auth login                           # then pick repos in the dashboard
+
 # Context agents share, versioned and permissioned
 ./bin/aurium context set task/objective "Add OAuth with PKCE"
 ./bin/aurium context query "token lifetime"
@@ -135,6 +138,15 @@ names the members, and a directory finds its project through its `repositories`
 row rather than through a project root — which is the one change that lets a
 repo live anywhere and still belong. A single repo with no descriptor stays a
 first-class project, because requiring one would tax the first five minutes.
+
+**GitHub, borrowed rather than stored.** If `gh` is logged in, Aurium reads
+that token instead of asking for one — one thing to revoke, nothing to go
+stale, and it is re-read each start because `gh` rotates it. That buys three
+things: picking repositories from GitHub when you create a project (it clones
+and attaches them), a pull-request and build badge beside each agent's branch,
+and `github_*` tools for agents through the MCP gateway, under per-container
+grants with an approval held for anything dangerous. The agents never see the
+token.
 
 **Provider accounts, and an honest meter.** An agent is recorded against the
 account that pays for it, so "which company, which agent" is a query rather

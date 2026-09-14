@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/RhyChaw/aurium/internal/github"
 	"github.com/RhyChaw/aurium/internal/mcp"
 )
 
@@ -17,7 +18,17 @@ type upstreamConfig struct {
 	Args      []string `json:"args"`
 	SecretEnv string   `json:"secret_env"`
 	URL       string   `json:"url"`
+	// TokenFrom names a credential the machine already holds, instead of one
+	// Aurium stores. "gh_cli" means `gh auth token` (§D28).
+	//
+	// It is read fresh on every daemon start, which is the point: `gh` rotates
+	// its token, and a copy in the keyring would go stale silently and fail
+	// every tool call with an error about the wrong thing.
+	TokenFrom string `json:"token_from"`
 }
+
+// TokenFromGitHubCLI is the upstreamConfig.TokenFrom value meaning "ask `gh`".
+const TokenFromGitHubCLI = "gh_cli"
 
 // ConnectUpstreams spawns every configured MCP server and registers it with
 // the gateway.
@@ -63,7 +74,17 @@ func (a *App) ConnectUpstreams(ctx context.Context, log *slog.Logger) error {
 		}
 
 		env := os.Environ()
-		if cfg.SecretEnv != "" && r.secretRef != "" {
+		if cfg.TokenFrom == TokenFromGitHubCLI && cfg.SecretEnv != "" {
+			token := github.CLIToken(ctx)
+			if token == "" {
+				a.markIntegration(ctx, r.id, "error",
+					"`gh` is not logged in on this machine; run `gh auth login`")
+				log.Warn("aurium: integration credential unavailable",
+					"integration", r.name, "reason", "gh not logged in")
+				continue
+			}
+			env = append(env, cfg.SecretEnv+"="+token)
+		} else if cfg.SecretEnv != "" && r.secretRef != "" {
 			secret, err := a.Secrets.Get(r.secretRef)
 			if err != nil {
 				// Say which integration and why, rather than failing every

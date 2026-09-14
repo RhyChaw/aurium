@@ -8,6 +8,7 @@ import { el, mount, shortID, ago } from "../lib/dom.js";
 import { state, update } from "../lib/state.js";
 import { Aurium } from "../lib/api.js";
 import { openProject, refreshProjectAgents } from "./rail.js";
+import { choose } from "../lib/dialog.js";
 
 export function renderHome(host) {
   mount(host,
@@ -78,6 +79,15 @@ function openCreate() {
   const addRow = (value = "") => rows.append(repoRow(rows, value));
   addRow();
 
+  // Repositories that are not on this machine yet. They are cloned after the
+  // project exists, so a failure to clone one leaves a project you can fix
+  // rather than nothing at all.
+  const pending = [];
+  const pendingList = el("div.pending-repos");
+  const renderPending = () => {
+    mountPending(pendingList, pending, renderPending);
+  };
+
   const name = el("input.field", { placeholder: "my-product", required: true });
   const description = el("input.field", { placeholder: "what this project is (optional)" });
   const root = el("input.field", {
@@ -115,6 +125,21 @@ function openCreate() {
           agent: agent.value,
           repos,
         });
+
+        // Clone after the project exists, one at a time, reporting which one
+        // is in flight: a large repository takes a while and a dialog that
+        // says nothing for ninety seconds reads as hung.
+        for (const r of pending) {
+          status.textContent = `Cloning ${r.full_name}…`;
+          await Aurium.githubClone(out.project.id, {
+            full_name: r.full_name,
+            clone_url: r.clone_url,
+            base_branch: r.default_branch,
+            driver: driver.value,
+            agent: agent.value,
+          });
+        }
+
         dialog.close();
         await reloadProjects();
         await openProject(out.project.id);
@@ -136,10 +161,24 @@ function openCreate() {
           "Absolute paths, or paths relative to the project root. Each one is " +
           "given guard hooks and an aurium.yaml if it has none."),
         rows,
-        el("button.mini", {
-          type: "button",
-          onclick: (e) => { e.preventDefault(); addRow(); },
-        }, "+ another repository"))),
+        pendingList,
+        el("div.repo-row-actions",
+          el("button.mini", {
+            type: "button",
+            onclick: (e) => { e.preventDefault(); addRow(); },
+          }, "+ a path on this machine"),
+          el("button.mini", {
+            type: "button",
+            onclick: async (e) => {
+              e.preventDefault();
+              const picked = await pickFromGitHub();
+              if (!picked) return;
+              if (!pending.some((r) => r.full_name === picked.full_name)) {
+                pending.push(picked);
+                renderPending();
+              }
+            },
+          }, "+ from GitHub")))),
     el("details.advanced",
       el("summary", "Advanced"),
       field("Project root", root),
@@ -158,6 +197,57 @@ function openCreate() {
   document.body.append(dialog);
   dialog.showModal();
   name.focus();
+}
+
+/** mountPending draws the not-yet-cloned repositories. */
+function mountPending(host, pending, rerender) {
+  host.replaceChildren();
+  for (const r of pending) {
+    host.append(el("div.pending-repo",
+      el("span.pending-name", r.full_name),
+      el("span.pending-hint", r.private ? "private" : "public"),
+      el("button.mini.ghost", {
+        type: "button",
+        title: "remove",
+        onclick: (e) => {
+          e.preventDefault();
+          pending.splice(pending.indexOf(r), 1);
+          rerender();
+        },
+      }, "×")));
+  }
+}
+
+/** pickFromGitHub lists the user's repositories and returns the chosen one. */
+async function pickFromGitHub() {
+  let repos;
+  try {
+    const out = await Aurium.githubRepos(100);
+    repos = out.repos ?? [];
+  } catch (err) {
+    update({ notice: err.message ?? String(err) });
+    return null;
+  }
+  if (!repos.length) {
+    update({ notice: "No repositories came back from GitHub." });
+    return null;
+  }
+
+  // Archived repositories and forks sink to the bottom rather than being
+  // hidden: they are rarely what you want and occasionally exactly what you
+  // want, and a picker that silently omits a repo is a picker you stop trusting.
+  const ordered = repos.slice().sort((a, b) =>
+    (a.archived === b.archived ? 0 : a.archived ? 1 : -1) ||
+    (a.fork === b.fork ? 0 : a.fork ? 1 : -1));
+
+  const chosen = await choose("Add from GitHub", "It is cloned into the project root.",
+    ordered.map((r) => ({
+      value: r.full_name,
+      label: r.full_name,
+      hint: [r.private ? "private" : null, r.archived ? "archived" : null,
+             r.fork ? "fork" : null, r.default_branch].filter(Boolean).join(" · "),
+    })));
+  return chosen ? ordered.find((r) => r.full_name === chosen) : null;
 }
 
 function field(label, control) {

@@ -617,6 +617,110 @@ paths:
         "404": { description: Not found }
         "403": { description: Host-only }
 
+  /v1/github:
+    get:
+      summary: Whether Aurium can see your GitHub
+      description: |
+        D28: the token comes from `gh auth token` when `gh` is logged in, and
+        from the keyring otherwise. Storing a second copy of a credential the
+        machine already holds creates a second thing to revoke and a second
+        thing to go stale.
+
+        The token is checked rather than assumed — a stale one that still looks
+        like a token would otherwise read as connected until the first listing
+        failed for no visible reason. Host-only: an agent reaches GitHub through
+        the MCP gateway under a grant (§10).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connected: { type: boolean }
+                  source: { type: string, enum: [gh_cli, stored] }
+                  login: { type: string }
+                  name: { type: string }
+                  error: { type: string, description: A token that exists but does not work. }
+                  cli_available: { type: boolean }
+        "403": { description: Host-only }
+
+  /v1/github/repos:
+    get:
+      summary: The repositories this token can see
+      description: Most recently pushed first, which is nearly always the order somebody wants.
+      parameters: [{ name: limit, in: query, schema: { type: integer, default: 100 } }]
+      responses:
+        "200": { description: OK }
+        "400": { description: No GitHub connection, or GitHub refused the token }
+        "502": { description: GitHub could not be reached }
+        "403": { description: Host-only }
+
+  /v1/projects/{project}/github/clone:
+    post:
+      summary: Clone a GitHub repository into a project and attach it
+      description: |
+        One call because it is one intent: a repository on disk that no project
+        knows about is not what anybody asked for.
+
+        The destination is confined to the project root. Without that, `dest` is
+        an arbitrary filesystem path a request can name, and this route would
+        clone anything anywhere as the user — far more authority than "add a
+        repository to this project" asks for.
+
+        The token reaches git through GIT_ASKPASS, never in the URL: a URL with
+        a token in it ends up in `git remote -v`, in .git/config, and in every
+        log that records the command.
+      parameters: [{ name: project, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clone_url]
+              properties:
+                clone_url: { type: string }
+                full_name: { type: string, description: owner/repo, used to name the directory. }
+                dest: { type: string, description: Defaults to <project root>/<repo name>. }
+                base_branch: { type: string }
+                driver: { type: string }
+                image: { type: string }
+                agent: { type: string }
+      responses:
+        "201": { description: Cloned and attached }
+        "400": { description: No connection, a non-empty destination, or a path outside the project }
+        "403": { description: Host-only }
+
+  /v1/projects/{project}/github/tools:
+    post:
+      summary: Give this project's agents github_* capabilities
+      description: |
+        The other GitHub: the MCP gateway's (§10). Agents never touch the token
+        — the daemon holds it, spawns the upstream server and filters which
+        tools each container may call. Ungranted tools are not listed at all, so
+        an agent cannot try one it does not hold.
+
+        The token is borrowed from `gh auth token` at connect time and never
+        written down. It is re-read on every daemon start, because `gh` rotates
+        it and a keyring copy would go stale silently.
+      parameters: [{ name: project, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: Connected, with the capability count that was registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  integration: { type: string }
+                  status: { type: string }
+                  last_error: { type: string }
+                  capabilities: { type: integer }
+        "400": { description: "`gh` is not logged in on this machine" }
+        "502": { description: The upstream MCP server could not be started }
+        "403": { description: Host-only }
+
   /v1/usage:
     get:
       summary: What the fleet has spent

@@ -27,7 +27,80 @@ export function renderProviders(host) {
             "No OS keyring is available on this machine, so credentials fall back to " +
             "a 0600 file under ~/.aurium. That file is not encrypted at rest.")
         : null,
-      el("div.provider-grid", detected.map((d) => providerCard(d, accounts)))));
+      el("div.provider-grid", detected.map((d) => providerCard(d, accounts))),
+      githubCard()));
+}
+
+/**
+ * The GitHub card.
+ *
+ * Two different things live behind one connection and the card says so, because
+ * they are not the same permission: Aurium listing your repositories is you
+ * looking at your own account, and an agent calling github_* is something else
+ * entirely — and only the second one can open a pull request while you are at
+ * lunch.
+ */
+function githubCard() {
+  const gh = state.github;
+
+  return el("section.provider-card",
+    el("header.provider-head",
+      el("h3", "GitHub"),
+      gh?.connected
+        ? el("span.pill", gh.source === "gh_cli" ? "via gh CLI" : "stored token")
+        : el("span.pill.ghost", "not connected")),
+
+    gh === null || gh === undefined
+      ? el("p.empty", "checking…")
+      : gh.connected
+        ? el("div",
+            el("p.hint", "Connected as ", el("strong", gh.login),
+              gh.name ? ` (${gh.name})` : "",
+              ". Aurium borrows the token ", el("code", "gh"),
+              " already holds rather than storing a second copy of it — one thing to revoke, ",
+              "and nothing to go stale."),
+            el("p.hint", "You can now pick repositories from GitHub when creating a project, ",
+              "and a container's branch shows its pull request and build state in the rail."))
+        : el("div",
+            gh.error
+              ? el("p.error-text", gh.error)
+              : el("p.hint", "No GitHub connection."),
+            el("p.hint", "Run ", el("code", "gh auth login"), " in a terminal. ",
+              "Aurium reads the token from ", el("code", "gh"),
+              " and never keeps a copy.")),
+
+    el("div.connect-block",
+      el("h4", "Agent tools"),
+      el("p.hint",
+        "Separate from the above. This spawns the GitHub MCP server behind the ",
+        "gateway so agents can search repositories, read files and open pull ",
+        "requests as ", el("code", "github_*"), " tools — under per-container ",
+        "grants, with an approval held for anything dangerous. The agents never ",
+        "see the token."),
+      state.openProject
+        ? el("button.act", {
+            disabled: !gh?.connected || state.githubToolsBusy,
+            onclick: () => enableTools(state.openProject),
+          }, state.githubToolsBusy ? "connecting…" : "Enable for the open project")
+        : el("p.hint", "Open a project first — tools are granted per project."),
+      state.githubTools
+        ? el("p.dialog-status", state.githubTools)
+        : null));
+}
+
+async function enableTools(projectID) {
+  update({ githubToolsBusy: true, githubTools: null });
+  try {
+    const out = await Aurium.githubTools(projectID);
+    update({
+      githubToolsBusy: false,
+      githubTools: out.status === "connected"
+        ? `Connected — ${out.capabilities} capabilities registered. Grant them per container with \`aurium integration grant github\`.`
+        : `The server reported: ${out.last_error || out.status}`,
+    });
+  } catch (err) {
+    update({ githubToolsBusy: false, githubTools: err.message ?? String(err) });
+  }
 }
 
 function providerCard(d, accounts) {
@@ -182,11 +255,14 @@ function subscriptionForm(d) {
 
 export async function reloadProviders() {
   try {
-    const [{ accounts }, detected] = await Promise.all([
+    const [{ accounts }, detected, gh] = await Promise.all([
       Aurium.providers(),
       Aurium.detectProviders(),
+      // A GitHub check is a network round trip, so it must not be able to stop
+      // the rest of the page rendering.
+      Aurium.github().catch(() => ({ connected: false, error: "could not be checked" })),
     ]);
-    update({ providers: accounts ?? [], detected });
+    update({ providers: accounts ?? [], detected, github: gh });
   } catch (err) {
     update({ notice: err.message ?? String(err) });
   }

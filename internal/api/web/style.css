@@ -403,6 +403,20 @@ button.act.primary { background: var(--accent); color: var(--on-accent); border-
 .tile-branch { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile-when { margin-left: auto; flex: 0 0 auto; }
 
+/* The pull request behind a branch. Small, because it is context rather than
+   the point — but coloured, because a failing build is worth noticing without
+   opening anything. */
+.pr {
+  flex: 0 0 auto; font: 9px var(--mono); padding: 0 4px;
+  border-radius: 3px; border: 1px solid var(--border-strong); color: var(--muted);
+}
+.pr[data-pr="green"]    { border-color: var(--ok); color: var(--ok); }
+.pr[data-pr="failing"]  { border-color: var(--danger); color: var(--danger); }
+.pr[data-pr="building"] { border-color: var(--warn); color: var(--warn); }
+.pr[data-pr="merged"]   { border-color: var(--accent); color: var(--accent); }
+.pr[data-pr="closed"]   { opacity: 0.6; }
+.pr[data-pr="draft"]    { border-style: dashed; }
+
 /* ---------------------------------------------------------------- centre */
 
 /* The centre stacks three things that answer different questions: is it alive
@@ -611,6 +625,16 @@ button.act.primary { background: var(--accent); color: var(--on-accent); border-
 .field-row { display: grid; gap: 4px; }
 .field-label { font: 10px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .repo-rows { display: grid; gap: 6px; margin: 6px 0; }
+.repo-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.pending-repos { display: grid; gap: 5px; margin: 6px 0; }
+.pending-repo {
+  display: flex; align-items: baseline; gap: 8px;
+  border: 1px solid var(--accent); border-radius: 6px;
+  background: var(--accent-soft); padding: 5px 9px;
+}
+.pending-name { font: 12px var(--mono); }
+.pending-hint { font: 10px var(--mono); color: var(--muted); }
+.pending-repo .mini { margin-left: auto; }
 .repo-row { display: flex; gap: 6px; }
 .repo-row .field { flex: 1 1 auto; }
 .advanced summary { cursor: pointer; color: var(--muted); font-size: 12px; }

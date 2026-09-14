@@ -4,7 +4,7 @@ Every place Aurium returns a canned value, skips an ERD section, or claims
 more than it has been shown to do. Maintained as one table on purpose: gaps
 scattered through code comments are gaps nobody reads.
 
-Last audited: 2026-09-14, after the dashboard v1 change.
+Last audited: 2026-09-14, after the dashboard v1, agent-chat and GitHub changes.
 
 ## Never executed against a container runtime
 
@@ -49,6 +49,8 @@ Docker-dependent tests exist behind a tag was false.
 | Podman driver | `NewDocker("podman")` exists; the three documented flag differences are not handled. | Untested. |
 | `api/openapi.yaml` | Committed, with `internal/api/openapi_test.go` failing in either direction. | **closed** |
 | Dashboard v1 (§11.3) | Approvals, Agents and per-project surfaces shipped (2026-09-14). **Context browsing and the integrations grants matrix are still absent** — the gateway's grants can only be read and changed through `aurium integration`. | Two of the four v1 tabs remain CLI-only. |
+| GitHub PR badges | Cached for 60s per (repo, branch). A badge can be a minute stale, and a rate-limited or slow GitHub shows no badge rather than no rail. | Decoration, by design. |
+| GitHub agent tools | `POST /v1/projects/{p}/github/tools` spawns `@modelcontextprotocol/server-github` behind the gateway. **The upstream server itself has never been observed running** — the same gap as every other integration, since the Docker path has never worked end to end. The route reports whatever the handshake says. | Unproven end to end. |
 | Interactive-session usage | Only headless runs are metered, and only for the `claude` adapter, whose JSON envelope is parsed. A REPL turn surfaces nothing the daemon can read, so it is not counted. The Usage tab says so on the page. | **Spend shown is a lower bound.** ERD §9.1's base-URL provider proxy is the only thing that would close this, and it is Phase D. |
 | Provider subscription login | Connecting a seat means running the provider CLI's own login (`claude setup-token`, `codex login`) and handing Aurium the token, or pointing it at the login already on the host. There is no OAuth client Aurium drives. | Two steps, not one. Recorded as D25 rather than hidden. |
 | `claude` usage parsing | `internal/agent/usage.go` parses the documented `--output-format json` envelope. **Written from the docs; no run has been observed**, exactly like the rest of the claude adapter. | An adapter change upstream silently stops metering. Unit-tested against a synthetic envelope only. |
@@ -85,6 +87,13 @@ the two documents do not silently disagree. Their reasoning is in
 | **D25** | Subscription login is the provider CLI's own login, captured. |
 | **D26** | Usage is recorded only where a provider reports it, and the gap is shown rather than hidden. |
 | **D27** | The dashboard is ES modules loaded natively — still no Node in `go build`. |
+| **D28** | GitHub's token is borrowed from `gh auth token`, not stored. A second copy of a credential the machine already holds is a second thing to revoke and a second thing to go stale. It is re-read on every daemon start because `gh` rotates it. |
+| **D29** | A chat turn runs the adapter's headless command rather than typing into a REPL. On the `local` driver there is no session to type into, so a message sat in an inbox nothing would read; a headless turn works on every driver and produces the token counts the meter needs. It does not replace `aurium attach`. |
+
+There is no CLI for GitHub yet: `aurium provider` and `aurium usage` cover
+provider accounts and spend, but listing GitHub repositories, cloning one into
+a project and enabling agent tools are dashboard-only. `aurium integration
+connect github` does the last of those the long way.
 
 `aurium provider` and `aurium usage` cover both from the terminal, so neither
 surface is the one that really works (D21). Creating a *project* across several

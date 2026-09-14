@@ -102,7 +102,29 @@ function agentTile(tile) {
         tile.unread ? el("span.tile-unread", String(tile.unread)) : null),
       el("span.tile-sub",
         el("span.tile-branch", tile.container?.branch ?? "—"),
+        prBadge(tile.pr),
         el("span.tile-when", ago(a.last_activity_at)))));
+}
+
+/**
+ * prBadge is what this agent's branch became on GitHub.
+ *
+ * Deliberately tiny and deliberately at the end: a container that is green in
+ * CI and one with a failing build look different at a glance, which is the
+ * whole point, but a branch with no PR is the ordinary case and must not be
+ * decorated with an absence.
+ */
+function prBadge(pr) {
+  if (!pr) return null;
+  const state = pr.merged ? "merged"
+    : pr.state === "closed" ? "closed"
+    : pr.draft ? "draft"
+    : pr.checks === "failure" ? "failing"
+    : pr.checks === "pending" ? "building"
+    : pr.checks === "success" ? "green"
+    : "open";
+  return el("span.pr", { dataset: { pr: state }, title: `#${pr.number} ${pr.title ?? ""} (${state})` },
+    `#${pr.number}`);
 }
 
 function worstState(agents) {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/RhyChaw/aurium/internal/app"
+	"github.com/RhyChaw/aurium/internal/github"
 	"github.com/RhyChaw/aurium/internal/store"
 )
 
@@ -134,6 +135,11 @@ type AgentTile struct {
 	// `shell` agent cannot, and offering a composer that silently does nothing
 	// would be worse than saying so.
 	CanChat bool `json:"can_chat"`
+	// PR is what this agent's branch became on GitHub, when there is a
+	// connection and the branch has one. A container that is green in CI and
+	// one with a failing build are different situations, and the rail is where
+	// that difference is worth seeing.
+	PR *github.PullRequest `json:"pr,omitempty"`
 }
 
 // Agent states, as the rail paints them.
@@ -201,6 +207,10 @@ func (s *Server) projectAgents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Best effort and cached: no GitHub connection, a repo with no remote or a
+	// rate limit all mean "no badge", never "no rail".
+	prs := s.pullRequestsFor(ctx, containers)
+
 	tiles := make([]AgentTile, 0, len(agents))
 	for _, a := range agents {
 		t := AgentTile{Agent: a, State: StateOf(a.Status)}
@@ -216,6 +226,7 @@ func (s *Server) projectAgents(w http.ResponseWriter, r *http.Request) {
 		t.Unread = unread[a.ID]
 		t.Thinking = s.App.Manager.IsThinking(a.ID)
 		t.CanChat = s.App.Manager.CanConverse(a.Adapter)
+		t.PR = prs[a.ContainerID]
 		if acct, ok := accounts[a.ProviderAccountID]; ok {
 			t.Provider = acct.Provider
 		}
