@@ -124,6 +124,8 @@ header h1 { margin: 0; font-size: 1.05rem; letter-spacing: 0.02em; font-weight: 
 .conn-connecting::before { background: var(--warn); }
 .conn-down::before { background: var(--danger); }
 
+#theme { margin-left: auto; text-transform: lowercase; }
+
 nav {
   display: flex;
   gap: 0.25rem;

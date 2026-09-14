@@ -4,7 +4,7 @@ Every place Aurium returns a canned value, skips an ERD section, or claims
 more than it has been shown to do. Maintained as one table on purpose: gaps
 scattered through code comments are gaps nobody reads.
 
-Last audited: 2026-09-08, after the Phase A–C review.
+Last audited: 2026-09-14, after the dashboard v1 change.
 
 ## Never executed against a container runtime
 
@@ -46,8 +46,12 @@ Docker-dependent tests exist behind a tag was false.
 | `aurium pr` (§12.1) | Not implemented. | Phase C gate's "PR created through the gateway" was never demonstrated end to end. |
 | `aurium push`, `reparent`, `logs`, `agent message/exec` | Not implemented. | Listed in §12.1, absent. |
 | Podman driver | `NewDocker("podman")` exists; the three documented flag differences are not handled. | Untested. |
-| `api/openapi.yaml` | Does not exist. The plan said a test would keep routes in sync with it. | No API contract document. |
-| Dashboard v1 (§11.3) | Agents, Context, Integrations matrix and Approvals inbox tabs are absent. | v0 only: containers, tasks, events. |
+| `api/openapi.yaml` | Committed, with `internal/api/openapi_test.go` failing in either direction. | **closed** |
+| Dashboard v1 (§11.3) | Approvals, Agents and per-project surfaces shipped (2026-09-14). **Context browsing and the integrations grants matrix are still absent** — the gateway's grants can only be read and changed through `aurium integration`. | Two of the four v1 tabs remain CLI-only. |
+| Interactive-session usage | Only headless runs are metered, and only for the `claude` adapter, whose JSON envelope is parsed. A REPL turn surfaces nothing the daemon can read, so it is not counted. The Usage tab says so on the page. | **Spend shown is a lower bound.** ERD §9.1's base-URL provider proxy is the only thing that would close this, and it is Phase D. |
+| Provider subscription login | Connecting a seat means running the provider CLI's own login (`claude setup-token`, `codex login`) and handing Aurium the token, or pointing it at the login already on the host. There is no OAuth client Aurium drives. | Two steps, not one. Recorded as D25 rather than hidden. |
+| `claude` usage parsing | `internal/agent/usage.go` parses the documented `--output-format json` envelope. **Written from the docs; no run has been observed**, exactly like the rest of the claude adapter. | An adapter change upstream silently stops metering. Unit-tested against a synthetic envelope only. |
+| Price table | `internal/usage/pricing.go` holds list prices verified 2026-05. Discounts, batch pricing, cache tiers and long-context tiers are not modelled. | Costs are indicative. The table's date is shown in the UI. |
 | Linters | `errcheck` and `staticcheck` are wired into `make lint` but **cannot load this module** under Go 1.27 — errcheck silently reports nothing and exits 0. | A green `make lint` currently means nothing. |
 
 ## Crash windows
@@ -60,6 +64,29 @@ Docker-dependent tests exist behind a tag was false.
 
 ## ERD sections not implemented
 
-§9.1 base-URL provider proxy (Phase D) · §11.3 dashboard v1 · §12.1 `push`,
-`pr`, `reparent`, `logs`, `agent` subcommands · §13 admission control ·
-§6.5 `--env` sync unproven · sidecars · podman parity · `aurium graph`.
+§9.1 base-URL provider proxy (Phase D — and the only route to exact usage for
+interactive agents) · §11.3 dashboard v1's Context and Integrations tabs ·
+§12.1 `push`, `pr`, `reparent`, `logs`, `agent` subcommands · §13 admission
+control · §6.5 `--env` sync unproven · sidecars · podman parity ·
+`aurium graph`.
+
+## Added after the ERD
+
+These are not gaps; they are decisions taken beyond the RFC, recorded here so
+the two documents do not silently disagree. Their reasoning is in
+`docs/superpowers/specs/2026-09-14-agent-os-dashboard-design.md`.
+
+| | |
+|---|---|
+| **D22** | A project is a set of repositories described by `aurium.project.yaml`. The ERD listed multi-repo as a non-goal "the runtime does not support"; that is still true of a single *container*, which remains one repo. What changed is that a project may now span several. |
+| **D23** | A directory resolves to its project through its `repositories` row, not through `projects.root`. |
+| **D24** | `provider_accounts` records which account an agent runs on; the credential stays in the keyring. |
+| **D25** | Subscription login is the provider CLI's own login, captured. |
+| **D26** | Usage is recorded only where a provider reports it, and the gap is shown rather than hidden. |
+| **D27** | The dashboard is ES modules loaded natively — still no Node in `go build`. |
+
+`aurium provider` and `aurium usage` cover both from the terminal, so neither
+surface is the one that really works (D21). Creating a *project* across several
+repositories is still dashboard-only: `aurium init` joins a repo to a project
+whose descriptor already exists, but nothing writes a new descriptor from the
+CLI.

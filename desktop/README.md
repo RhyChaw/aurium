@@ -30,10 +30,22 @@ What the window adds over a browser tab:
 | No URL bar | the page carries a credential; nothing to copy out or screenshot |
 | A splash that waits | starting the app before the daemon shows "looking for the daemon", not a connection error |
 | **Native notifications** | an agent blocked on an approval reaches you when the window is behind something else |
+| A window sized for three panes | the dashboard's workspace is a rail, a pulse and a chat pane; below 900px they stack, so the window has a 940px minimum |
 
 That last row is the reason to build this at all. A pending approval is an
 agent sitting idle waiting for a human, and the only fix is getting a human's
 attention.
+
+## What the window shows
+
+The daemon's dashboard, which as of 2026-09-14 is the workspace described in
+`docs/superpowers/specs/2026-09-14-agent-os-dashboard-design.md`: every
+project's agents in a left rail with a colour per state, a live pulse of the
+fleet in the middle, and one agent's conversation on the right. Tabs alongside
+it cover approvals, spend, and the provider accounts agents run on.
+
+None of that lives in this app. It is the daemon's page, and a browser tab at
+`http://127.0.0.1:7770` shows exactly the same thing.
 
 ## Approvals
 
@@ -72,11 +84,16 @@ well, or notifications will not be granted on that origin.
 
 ## Status
 
-The UI and the splash logic are verified: both were driven headlessly against a
-mock daemon implementing `api/openapi.yaml`, covering the container tree, the
-live SSE stream, the approvals inbox, approve and reject, the notification path
-for a newly arrived approval, and both splash outcomes (daemon present and
-absent).
+The splash logic is verified against a mock daemon (both outcomes: daemon
+present and absent).
+
+The dashboard it hands over to was driven against a **real** daemon on
+2026-09-14 — creating a project across two repositories, the rail's four colour
+bands, opening an agent, sending it a message and seeing it land as IPC, the
+usage aggregates, and connecting and dropping a provider account. Two defects
+were found that way and fixed: `a` approved a held upstream call from any
+panel, and the rail's project header read out as a filesystem path to a screen
+reader.
 
 **The Rust side has never been compiled.** It is ~30 lines with one command and
 one plugin, but `cargo tauri dev` on a machine with the toolchain is the first

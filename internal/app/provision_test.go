@@ -10,6 +10,10 @@ import (
 
 	"github.com/RhyChaw/aurium/internal/config"
 	"github.com/RhyChaw/aurium/internal/project"
+	"github.com/RhyChaw/aurium/internal/providers"
+	"github.com/RhyChaw/aurium/internal/runtime"
+	"github.com/RhyChaw/aurium/internal/secrets"
+	"github.com/RhyChaw/aurium/internal/store"
 )
 
 // newApp opens an App against a throwaway home, so no test reads or writes the
@@ -240,4 +244,126 @@ func TestDefaultRootIsOutOfTheWay(t *testing.T) {
 	if CanonicalPath(want) != p.Root {
 		t.Fatalf("root = %q, want %q", p.Root, want)
 	}
+}
+
+// An agent must be recorded against the account that pays for it, and the
+// credential must reach the container's environment. Without the first,
+// "which company, which agent" is unanswerable; without the second, connecting
+// an account in the dashboard changes nothing about what actually runs.
+func TestAgentsRunOnTheConnectedAccount(t *testing.T) {
+	a := newApp(t)
+	ctx := context.Background()
+
+	// A fake keyring: no test may reach the developer's login keychain.
+	ring := &memKeyring{m: map[string]string{}}
+	a.Secrets.Keyring = ring
+
+	acct, err := a.Providers.Connect(ctx, providers.ConnectRequest{
+		Provider: store.ProviderAnthropic, AuthKind: store.AuthAPIKey,
+		Label: "work", Secret: "sk-ant-SECRETVALUE",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := gitRepo(t, filepath.Join(t.TempDir(), "api"), "main")
+	p, repos, err := a.CreateProject(ctx, NewProject{
+		Name: "x", Root: t.TempDir(), Repos: []RepoSpec{{Path: repo}},
+		Driver: "local", Agent: "claude",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := config.Load(filepath.Join(repos[0].Path, config.Filename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := a.Manager.Create(ctx, runtime.CreateOpts{
+		ProjectID: p.ID, RepoID: repos[0].ID, RepoRoot: repos[0].Path,
+		Branch: "feature", ParentBranch: "main", Config: cfg,
+		Adapter: "claude", Role: store.RolePrimary, OriginKind: store.OriginFresh,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	agents, err := a.Store.ListAgents(ctx, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(agents) != 1 {
+		t.Fatalf("want one agent, got %d", len(agents))
+	}
+	if agents[0].ProviderAccountID != acct.ID {
+		t.Fatalf("the agent must record the account paying for it, got %q", agents[0].ProviderAccountID)
+	}
+
+	// And the credential must have reached the container. The local driver
+	// keeps the spec's environment, which is where it would have been injected.
+	name, value, err := a.Providers.Resolve(ctx, acct.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "ANTHROPIC_API_KEY" || value != "sk-ant-SECRETVALUE" {
+		t.Fatalf("Resolve = %q=%q", name, value)
+	}
+}
+
+// A `shell` agent spends nothing Aurium can attribute, so it must not be
+// recorded against an account — a billing view that attributes shell sessions
+// to Anthropic is worse than one that leaves them blank.
+func TestShellAgentsGetNoAccount(t *testing.T) {
+	a := newApp(t)
+	ctx := context.Background()
+	a.Secrets.Keyring = &memKeyring{m: map[string]string{}}
+
+	if _, err := a.Providers.Connect(ctx, providers.ConnectRequest{
+		Provider: store.ProviderAnthropic, AuthKind: store.AuthAPIKey, Secret: "sk-ant-x",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	repo := gitRepo(t, filepath.Join(t.TempDir(), "api"), "main")
+	p, repos, err := a.CreateProject(ctx, NewProject{
+		Name: "x", Root: t.TempDir(), Repos: []RepoSpec{{Path: repo}},
+		Driver: "local", Agent: "shell",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, _ := config.Load(filepath.Join(repos[0].Path, config.Filename))
+	c, err := a.Manager.Create(ctx, runtime.CreateOpts{
+		ProjectID: p.ID, RepoID: repos[0].ID, RepoRoot: repos[0].Path,
+		Branch: "feature", ParentBranch: "main", Config: cfg,
+		Adapter: "shell", Role: store.RolePrimary, OriginKind: store.OriginFresh,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agents, _ := a.Store.ListAgents(ctx, c.ID)
+	if len(agents) != 1 || agents[0].ProviderAccountID != "" {
+		t.Fatalf("a shell agent must have no account: %+v", agents)
+	}
+}
+
+// memKeyring stands in for the OS keyring.
+type memKeyring struct{ m map[string]string }
+
+func (k *memKeyring) Set(service, account, secret string) error {
+	k.m[service+"/"+account] = secret
+	return nil
+}
+
+func (k *memKeyring) Get(service, account string) (string, error) {
+	v, ok := k.m[service+"/"+account]
+	if !ok {
+		return "", secrets.ErrNotFound
+	}
+	return v, nil
+}
+
+func (k *memKeyring) Delete(service, account string) error {
+	delete(k.m, service+"/"+account)
+	return nil
 }

@@ -11,10 +11,10 @@
       {
         "label": "main",
         "title": "Aurium",
-        "width": 1100,
-        "height": 740,
-        "minWidth": 700,
-        "minHeight": 520
+        "width": 1420,
+        "height": 880,
+        "minWidth": 940,
+        "minHeight": 600
       }
     ],
     "security": {
@@ -24,6 +24,8 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/icon.png"]
+    "icon": [
+      "icons/icon.png"
+    ]
   }
 }

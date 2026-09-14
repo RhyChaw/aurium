@@ -13,6 +13,7 @@ import { $, el, mount } from "./lib/dom.js";
 import { readToken } from "./lib/api.js";
 import { state, update, subscribe } from "./lib/state.js";
 import { connect } from "./lib/stream.js";
+import { initTheme } from "./lib/theme.js";
 import { Aurium } from "./lib/api.js";
 
 import { renderHome, reloadProjects } from "./views/home.js";
@@ -201,6 +202,8 @@ async function bootRefresh() {
 }
 
 async function main() {
+  initTheme($("#theme"));
+
   if (!readToken()) {
     update({ conn: "down", error: "No token in this page. Open the dashboard with `aurium dashboard`." });
     subscribe(render);

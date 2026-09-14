@@ -56,6 +56,8 @@ func Execute() error {
 		newApproveCmd(false),
 		newApproveCmd(true),
 		newIntegrationCmd(),
+		newProviderCmd(),
+		newUsageCmd(),
 		newVersionCmd(),
 	)
 	return root.Execute()

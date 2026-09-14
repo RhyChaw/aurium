@@ -30,7 +30,7 @@
 | `sqlc` generates typed queries | Hand-written typed queries in `internal/store` | Removes a build-time codegen dependency; the contract (typed methods over SQL) is identical |
 | `oapi-codegen` generates handlers from `api/openapi.yaml` | Hand-written handlers; `api/openapi.yaml` is committed and kept in sync by a test | Same reason; a test asserts every registered route appears in the spec |
 | `modelcontextprotocol/go-sdk` | Hand-rolled JSON-RPC 2.0 + MCP in `internal/mcp` | MCP stdio/HTTP is ~300 lines; avoids a fast-moving dependency in the security-critical gateway |
-| Dashboard is Vite + React + TypeScript | Vanilla JS + HTML, embedded via `go:embed` | No Node build step in `go build`; dashboard v0 is 5 read-mostly screens |
+| Dashboard is Vite + React + TypeScript | Vanilla JS ES modules, embedded via `go:embed` | No Node build step in `go build`. Held for v1 (2026-09-14): the dashboard is now a dozen modules the browser loads natively, which is a structure, not a single file — and still nothing but Go to build. |
 | Bubble Tea for `aurium tree --watch` | ANSI redraw loop | One less dependency for one command |
 
 ---
