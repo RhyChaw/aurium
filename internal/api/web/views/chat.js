@@ -13,6 +13,7 @@ import { el, mount, shortID, ago } from "../lib/dom.js";
 import { state, update } from "../lib/state.js";
 import { Aurium } from "../lib/api.js";
 import { refreshTranscript } from "./rail.js";
+import { prompt } from "../lib/dialog.js";
 
 // Message types that mean something is wrong or waiting, so they can be
 // coloured rather than read.
@@ -29,18 +30,50 @@ export function renderChat(host) {
   const a = detail?.agent ?? {};
   const messages = state.transcript ?? [];
 
+  // The daemon says whether a turn is in flight. Inferring it from status was
+  // wrong: `running` means the agent is alive, which a shell agent is forever,
+  // so the indicator showed for the rest of its life and meant nothing.
+  const thinking = detail?.thinking === true;
+  const canChat = detail?.can_chat !== false;
+
   mount(host,
     header(detail, a),
     el("div.chat-scroll", { id: "chat-scroll" },
       messages.length
         ? messages.map(bubble)
-        : el("p.empty", "Nothing said yet. This agent has sent and received no messages.")),
-    composer(a));
+        : el("p.empty", canChat
+            ? "Nothing said yet. Say something below and it will answer here."
+            : "Nothing said yet."),
+      thinking ? thinkingBubble() : null),
+    canChat ? composer(a) : noChat(detail));
 
   // Pin to the newest message. A transcript that opens at the top means
   // scrolling past a week of history to find out what is happening now.
   const scroll = host.querySelector("#chat-scroll");
   if (scroll) scroll.scrollTop = scroll.scrollHeight;
+}
+
+/**
+ * noChat replaces the composer for an agent with no model behind it.
+ *
+ * A `shell` agent is a worktree and a prompt. Showing it a composer that
+ * silently files messages in an inbox nothing reads would be a box that lies
+ * about what it does.
+ */
+function noChat(detail) {
+  const adapter = detail?.agent?.adapter ?? "this agent";
+  return el("div.composer.no-chat",
+    el("p.hint",
+      `The ${adapter} adapter has no model to answer with. It is a worktree and a `,
+      "shell — take the wheel in a terminal instead."),
+    el("button.act", { onclick: () => copyAttach(detail?.container?.id) },
+      "Copy the attach command"));
+}
+
+function thinkingBubble() {
+  return el("article.msg.from-agent.is-thinking",
+    el("div.msg-head", el("span.msg-who", "agent"), el("span.msg-type", "thinking")),
+    el("div.msg-body", el("span.dots", el("i"), el("i"), el("i"))));
 }
 
 function header(detail, a) {
@@ -117,10 +150,14 @@ function composer(a) {
     try {
       const out = await Aurium.sendToAgent(a.id, { content });
       input.value = "";
-      // "typed" says the text went into the agent's live session; without it
-      // the message is only in the inbox, and telling the user it was
-      // delivered would be a claim nobody checked.
-      update({ sending: false, notice: out?.typed ? null : "queued to the agent's inbox" });
+      // Three outcomes, and they are not the same thing. `typed` went into a
+      // live session. `thinking` started a headless turn and a reply is
+      // coming. Neither means it is sitting in an inbox until the agent next
+      // looks — and saying "sent" for that would be a claim nobody checked.
+      update({
+        sending: false,
+        notice: out?.typed || out?.thinking ? null : "queued to the agent's inbox",
+      });
       await refreshTranscript(a.id);
     } catch (err) {
       update({ sending: false, notice: err.message ?? String(err) });
@@ -146,6 +183,10 @@ async function copyAttach(containerID) {
     await navigator.clipboard.writeText(cmd);
     update({ notice: `copied: ${cmd}` });
   } catch {
-    window.prompt("attach with", cmd);
+    // Clipboard access can be refused (an insecure origin, a browser policy).
+    // Showing the command in a box the user can select is the fallback — and
+    // a native prompt here would freeze the whole surface to do it.
+    await prompt("Attach in a terminal", "Copy this command:",
+      { value: cmd, submit: "Done" });
   }
 }

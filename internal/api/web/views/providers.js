@@ -10,6 +10,7 @@
 import { el, mount } from "../lib/dom.js";
 import { state, update } from "../lib/state.js";
 import { Aurium } from "../lib/api.js";
+import { confirm } from "../lib/dialog.js";
 
 export function renderProviders(host) {
   const detected = state.detected?.providers ?? [];
@@ -61,9 +62,11 @@ function accountRow(a) {
       onclick: async () => {
         // Disconnecting deletes the credential as well as the row, which is
         // not obvious from the word, so it is said before it happens.
-        if (!window.confirm(
-          `Disconnect "${a.label}"? This deletes the stored credential. ` +
-          `Agents already running keep the copy in their environment.`)) return;
+        const sure = await confirm(`Disconnect "${a.label}"?`,
+          "This deletes the stored credential. Agents already running keep the copy " +
+          "in their environment and carry on.",
+          { confirmLabel: "Disconnect", danger: true });
+        if (!sure) return;
         try {
           await Aurium.disconnectProvider(a.id);
           await reloadProviders();

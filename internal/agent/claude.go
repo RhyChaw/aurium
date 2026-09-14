@@ -66,7 +66,14 @@ func (c *Claude) LaunchCommand(o StartOpts) []string {
 }
 
 func (c *Claude) HeadlessCommand(prompt string, o ExecOpts) []string {
-	args := []string{"claude", "-p", prompt, "--output-format", "json"}
+	args := []string{"claude"}
+	if o.Continue {
+		// UNVERIFIED, like everything else here: --continue in -p mode is
+		// documented as resuming the most recent conversation in the working
+		// directory, which is per-container because the worktree is.
+		args = append(args, "--continue")
+	}
+	args = append(args, "-p", prompt, "--output-format", "json")
 	if o.Model != "" {
 		args = append(args, "--model", o.Model)
 	}

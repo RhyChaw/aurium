@@ -371,6 +371,18 @@ button.act.primary { background: var(--accent); color: var(--on-accent); border-
   .tile[data-state="working"] .tile-bar { animation: none; }
 }
 
+/* The add button is a tile so it sits in the stack rather than beside it: the
+   thing you click to make an agent should be the same shape as an agent. */
+.tile-add { border-style: dashed; background: none; }
+.tile-add .tile-bar { background: var(--border-strong); }
+.tile-add:hover { border-color: var(--accent); }
+.tile-add:hover .tile-bar { background: var(--accent); }
+.tile-add-label {
+  font: 11px var(--mono); color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.tile-add:hover .tile-add-label { color: var(--text); }
+
 .tile-body {
   flex: 1 1 auto; min-width: 0;
   display: grid; gap: 1px; padding: 5px 8px;
@@ -521,11 +533,27 @@ button.act.primary { background: var(--accent); color: var(--on-accent); border-
 .msg-body { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg-refs { display: flex; gap: 5px; flex-wrap: wrap; }
 
+/* Three dots while a turn runs. A model can take two minutes, and two minutes
+   of nothing looks exactly like a broken button. */
+.msg.is-thinking { opacity: 0.85; }
+.dots { display: inline-flex; gap: 4px; align-items: center; height: 1.2em; }
+.dots i {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--muted); animation: blink 1.4s ease-in-out infinite;
+}
+.dots i:nth-child(2) { animation-delay: 0.2s; }
+.dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dots i { animation: none; opacity: 0.6; } }
+
 .composer { border-top: 1px solid var(--border); padding: 0.6rem 0.9rem; display: grid; gap: 7px; }
 .composer-input { resize: vertical; font: inherit; padding: 0.5rem 0.6rem;
   border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--text); }
 .composer-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .composer .act { justify-self: end; }
+.composer.no-chat { gap: 9px; }
+.composer.no-chat .hint { margin: 0; }
+.field-hint { font-size: 11px; color: var(--muted); }
 
 /* ------------------------------------------------------------------- home */
 
@@ -590,6 +618,18 @@ button.act.primary { background: var(--accent); color: var(--on-accent); border-
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .dialog-status { margin: 0; font-size: 12px; color: var(--muted); min-height: 1.2em; }
 .dialog-status.is-error { color: var(--danger); }
+
+.choice-list { display: grid; gap: 6px; }
+.choice {
+  display: flex; align-items: baseline; gap: 10px;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 9px 12px; cursor: pointer; font: inherit; text-align: left;
+}
+.choice:hover { border-color: var(--accent); background: var(--accent-soft); }
+.choice-label { font-weight: 600; font-size: 13px; }
+.choice-hint { font: 10px var(--mono); color: var(--muted); margin-left: auto; }
+button.act.danger-act { background: var(--danger); color: var(--on-accent); border-color: var(--danger); }
 
 /* -------------------------------------------------------------- providers */
 

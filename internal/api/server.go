@@ -86,6 +86,7 @@ func (s *Server) routes() {
 	s.handle("GET /v1/projects/{project}", s.getProject, "")
 	s.handle("POST /v1/projects/{project}/repos", s.addRepository, "")
 	s.handle("GET /v1/projects/{project}/agents", s.projectAgents, "")
+	s.handle("POST /v1/projects/{project}/agents", s.spawnAgent, "")
 	s.handle("GET /v1/projects/{project}/containers", s.listContainers, "")
 	s.handle("GET /v1/projects/{project}/tasks", s.listTasks, "")
 	s.handle("POST /v1/projects/{project}/tasks", s.createTask, "task:*")

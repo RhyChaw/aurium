@@ -304,6 +304,43 @@ paths:
         "403": { description: An agent may not attach repositories }
 
   /v1/projects/{project}/agents:
+    post:
+      summary: Create an agent (and the container it needs)
+      description: |
+        "Add an agent" is the user's unit. A container — a worktree on a branch
+        — is the mechanism, created here because an agent needs one, not because
+        anybody asked for one.
+
+        Host-only. An agent able to spawn agents could fan out without bound;
+        delegation (§9.4) is the path for that and it has a depth cap.
+
+        With one repository in the project the choice of where to put it is
+        made; with several, `repo_id` is required rather than guessed, because
+        guessing puts an agent in the wrong tree.
+      parameters: [{ name: project, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                repo_id: { type: string }
+                name:
+                  type: string
+                  description: What the rail shows. Defaults to "Agent N".
+                branch:
+                  type: string
+                  description: Defaults to a slug of the name, made unique.
+                adapter: { type: string, description: "Defaults to the repo's aurium.yaml." }
+                model: { type: string }
+                role: { type: string, enum: [primary, master, worker] }
+                task: { type: string, description: Creates a task and attaches the container to it. }
+                parent_container_id: { type: string, description: Stack on an existing container. }
+                provider_account_id: { type: string }
+      responses:
+        "201": { description: Created }
+        "400": { description: The branch exists, the repo is ambiguous, or the driver refused }
+        "403": { description: An agent may not spawn agents }
     get:
       summary: Every agent in a project, as rail tiles
       description: |

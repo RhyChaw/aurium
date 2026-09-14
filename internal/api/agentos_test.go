@@ -407,3 +407,104 @@ func TestHeartbeatIsHostOnly(t *testing.T) {
 		t.Fatalf("heartbeat with a container token = %d, want 403", res.StatusCode)
 	}
 }
+
+// The chat pane needs two facts the agent's status cannot give it: whether a
+// turn is in flight right now, and whether this agent can answer at all.
+//
+// `running` means the agent is alive, which a shell agent is forever — showing
+// a thinking indicator for all of it makes the indicator mean nothing, and
+// showing a composer that files messages nowhere is a box that lies.
+func TestAgentReportsWhetherItCanChat(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	shell, err := h.app.Store.CreateAgent(ctx, store.Agent{
+		ContainerID: h.cA.ID, Adapter: "shell", Role: store.RolePrimary,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claude, err := h.app.Store.CreateAgent(ctx, store.Agent{
+		ContainerID: h.cA.ID, Adapter: "claude", Role: store.RoleWorker,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both alive, so status cannot be what distinguishes them.
+	for _, id := range []string{shell.ID, claude.ID} {
+		if err := h.app.Store.UpdateAgentStatus(ctx, id, store.AgentRunning); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	type detail struct {
+		CanChat  bool `json:"can_chat"`
+		Thinking bool `json:"thinking"`
+	}
+	got := decode[detail](t, h.do("GET", "/v1/agents/"+shell.ID, hostToken, ""))
+	if got.CanChat {
+		t.Fatal("the shell adapter has no model; claiming it can chat offers a composer that does nothing")
+	}
+	if got.Thinking {
+		t.Fatal("a running shell agent is not mid-turn")
+	}
+
+	got = decode[detail](t, h.do("GET", "/v1/agents/"+claude.ID, hostToken, ""))
+	if !got.CanChat {
+		t.Fatal("the claude adapter runs headless, so it can answer in the pane")
+	}
+	if got.Thinking {
+		t.Fatal("no turn was started, so nothing is thinking")
+	}
+
+	// The rail carries the same two facts, so a tile and its pane cannot
+	// disagree about whether the agent is busy.
+	tiles := decode[struct {
+		Agents []AgentTile `json:"agents"`
+	}](t, h.do("GET", "/v1/projects/"+h.proj.ID+"/agents", hostToken, ""))
+
+	byID := map[string]AgentTile{}
+	for _, tile := range tiles.Agents {
+		byID[tile.Agent.ID] = tile
+	}
+	if byID[shell.ID].CanChat || !byID[claude.ID].CanChat {
+		t.Fatalf("the rail disagrees with the pane: shell=%v claude=%v",
+			byID[shell.ID].CanChat, byID[claude.ID].CanChat)
+	}
+}
+
+// Spawning is the other half of a loop the dashboard could only half do:
+// make a project, then be unable to put anything in it.
+func TestSpawnAgentCreatesTheContainerItNeeds(t *testing.T) {
+	h := newHarness(t)
+
+	res := h.do("POST", "/v1/projects/"+h.proj.ID+"/agents", hostToken,
+		`{"adapter":"shell","name":"Scout"}`)
+	if res.StatusCode != http.StatusCreated {
+		defer res.Body.Close()
+		msg, _ := readBody(res)
+		t.Fatalf("spawn = %d: %s", res.StatusCode, msg)
+	}
+	out := decode[struct {
+		Agent     store.Agent     `json:"agent"`
+		Container store.Container `json:"container"`
+	}](t, res)
+
+	if out.Agent.DisplayName != "Scout" {
+		t.Fatalf("the name the user gave must stick: %q", out.Agent.DisplayName)
+	}
+	if out.Container.Branch == "" || out.Container.Worktree == "" {
+		t.Fatalf("an agent needs a branch and a worktree of its own: %+v", out.Container)
+	}
+	if out.Container.Branch == h.repo.BaseBranch {
+		t.Fatal("an agent must not be put on the base branch, which is the one thing it could break")
+	}
+
+	// Clicking twice must not fail on a name the user never chose.
+	second := h.do("POST", "/v1/projects/"+h.proj.ID+"/agents", hostToken, `{"adapter":"shell"}`)
+	defer second.Body.Close()
+	if second.StatusCode != http.StatusCreated {
+		msg, _ := readBody(second)
+		t.Fatalf("a second spawn = %d: %s", second.StatusCode, msg)
+	}
+}

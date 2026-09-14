@@ -168,7 +168,11 @@ function start() {
     ring.shift();
     building = emptyColumn();
     phase += 1;
-    draw();
+    // A hidden tab composites nothing, so drawing into it is pure waste — and
+    // this is an app built to be left open all day. The ring still advances,
+    // so the trace is continuous rather than showing a gap where the window
+    // happened to be behind something else.
+    if (!document.hidden) draw();
   }, TICK_MS);
   draw();
 }
@@ -289,4 +293,10 @@ function draw() {
 window.addEventListener("resize", () => {
   sizeCanvas();
   draw();
+});
+
+// Coming back to the window should show the trace immediately rather than on
+// the next tick, which is a tenth of a second of looking broken.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) draw();
 });

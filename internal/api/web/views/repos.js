@@ -9,6 +9,7 @@ import { el, mount } from "../lib/dom.js";
 import { state, update } from "../lib/state.js";
 import { Aurium } from "../lib/api.js";
 import { refreshDetail } from "./rail.js";
+import { prompt } from "../lib/dialog.js";
 
 export function renderRepos(host) {
   const id = state.openProject;
@@ -46,13 +47,12 @@ function basename(p) {
 }
 
 async function addRepo(projectID) {
-  const path = window.prompt(
-    "Path to a git repository to add to this project:\n\n" +
-    "It is given the guard hooks that enforce Invariant 1, and an aurium.yaml " +
-    "if it has none.");
+  const path = await prompt("Add a repository",
+    "It is given the guard hooks that enforce Invariant 1, and an aurium.yaml if it has none.",
+    { placeholder: "~/code/api", submit: "Add" });
   if (!path) return;
   try {
-    await Aurium.addRepo(projectID, { path: path.trim() });
+    await Aurium.addRepo(projectID, { path });
     await refreshDetail(projectID);
   } catch (err) {
     update({ notice: err.message ?? String(err) });

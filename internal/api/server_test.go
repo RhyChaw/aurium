@@ -16,6 +16,7 @@ import (
 
 	"github.com/RhyChaw/aurium/internal/agent"
 	"github.com/RhyChaw/aurium/internal/app"
+	"github.com/RhyChaw/aurium/internal/config"
 	"github.com/RhyChaw/aurium/internal/contextengine"
 	"github.com/RhyChaw/aurium/internal/events"
 	"github.com/RhyChaw/aurium/internal/ipc"
@@ -75,6 +76,14 @@ func newHarness(t *testing.T) *harness {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}
+	}
+
+	// A registered repository always has one — AttachRepository writes it — so
+	// a fixture without one is not a repository any of this code would meet.
+	if err := os.WriteFile(filepath.Join(root, config.Filename),
+		[]byte(config.Template("app", "main", "local", "node:20-alpine", "shell")),
+		0o644); err != nil {
+		t.Fatal(err)
 	}
 
 	st, err := store.Open(filepath.Join(t.TempDir(), "aurium.db"))

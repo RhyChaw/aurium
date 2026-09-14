@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -31,7 +32,11 @@ func (s *Server) getAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out := map[string]any{"agent": a, "container": c, "state": StateOf(a.Status)}
+	out := map[string]any{
+		"agent": a, "container": c, "state": StateOf(a.Status),
+		"thinking": s.App.Manager.IsThinking(a.ID),
+		"can_chat": s.App.Manager.CanConverse(a.Adapter),
+	}
 	if a.ProviderAccountID != "" {
 		if acct, err := s.App.Store.GetProviderAccount(ctx, a.ProviderAccountID); err == nil {
 			// The account, never its credential: GetProviderAccount returns a
@@ -121,7 +126,36 @@ func (s *Server) sendToAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	typed := s.typeIntoSession(r, c, a, body.Content)
-	writeJSON(w, http.StatusCreated, map[string]any{"message": m, "typed": typed})
+
+	// Where there is no live session to type into, run the turn headlessly so
+	// the chat pane actually answers. On the `local` driver — the one that
+	// works with no Docker, which is most first runs — this is the only path
+	// that reaches the model at all.
+	//
+	// It runs detached from the request: a turn takes minutes, and an HTTP
+	// call that blocks that long is one the browser abandons. The reply
+	// reaches the dashboard over SSE either way.
+	thinking := false
+	if !typed && s.App.Manager.CanConverse(a.Adapter) {
+		thinking = true
+		go func() {
+			// Not the request context: that is cancelled the moment this
+			// handler returns, which would kill every turn at birth.
+			ctx := context.WithoutCancel(r.Context())
+			if err := s.App.Manager.Converse(ctx, a.ID, body.Content); err != nil {
+				s.Log.Warn("api: conversation turn", "agent", a.ID, "err", err)
+			}
+		}()
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"message": m,
+		// typed: it went into a live session. thinking: a headless turn is
+		// running and a reply will arrive. Neither: it is in the inbox and
+		// will be read when the agent next looks.
+		"typed":    typed,
+		"thinking": thinking,
+	})
 }
 
 // typeIntoSession sends the text to an interactive agent's tmux session.

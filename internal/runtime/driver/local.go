@@ -136,6 +136,10 @@ func (l *Local) Exec(ctx context.Context, id string, cmd []string, o ExecOpts) (
 			res.ExitCode = ee.ExitCode()
 			return res, nil
 		}
+		// The buffers are returned alongside the error on purpose. A command
+		// killed by a context deadline has usually printed the reason it was
+		// going nowhere, and throwing that away leaves the caller with
+		// "timed out" and nothing to act on.
 		return res, fmt.Errorf("driver/local: exec %v: %w", cmd, err)
 	}
 	return res, nil

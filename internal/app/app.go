@@ -109,6 +109,11 @@ func Open(verbose bool) (*App, error) {
 	// one way: the thing that holds secrets knows about containers, not the
 	// reverse.
 	mgr.Credentials = &credentials{providers: a.Providers}
+	// A conversation turn records the agent's reply and meters what it cost,
+	// so the manager needs both. They are set after the App exists because the
+	// recorder needs the bus and the bus needs the store.
+	mgr.IPC = msgs
+	mgr.Usage = &meter{recorder: a.Usage}
 	// The snapshot and delegation adapters need the app to resolve a
 	// project's config, so they are attached once it exists.
 	gw.Snapshots = &managerSnapshots{mgr: mgr, app: a}

@@ -127,6 +127,13 @@ type AgentTile struct {
 	Unread int `json:"unread"`
 	// Provider names the company being billed, for the rail's subtitle.
 	Provider string `json:"provider,omitempty"`
+	// Thinking is a turn in flight right now. Not the same as the agent's
+	// status: `running` means alive, which a shell agent is forever.
+	Thinking bool `json:"thinking"`
+	// CanChat is whether this agent can answer in the chat pane at all. A
+	// `shell` agent cannot, and offering a composer that silently does nothing
+	// would be worse than saying so.
+	CanChat bool `json:"can_chat"`
 }
 
 // Agent states, as the rail paints them.
@@ -207,6 +214,8 @@ func (s *Server) projectAgents(w http.ResponseWriter, r *http.Request) {
 			t.Waiting, t.State = true, StateAttention
 		}
 		t.Unread = unread[a.ID]
+		t.Thinking = s.App.Manager.IsThinking(a.ID)
+		t.CanChat = s.App.Manager.CanConverse(a.Adapter)
 		if acct, ok := accounts[a.ProviderAccountID]; ok {
 			t.Provider = acct.Provider
 		}

@@ -60,6 +60,12 @@ type StartOpts struct {
 type ExecOpts struct {
 	Model   string
 	Timeout int
+	// Continue resumes the agent's previous conversation rather than starting
+	// a fresh one, which is what makes a sequence of headless turns a
+	// conversation instead of a series of strangers. The first turn must not
+	// set it: there is no session to continue, and asking to continue nothing
+	// is an error rather than a fresh start.
+	Continue bool
 }
 
 // ExecResult is the outcome of a headless run.

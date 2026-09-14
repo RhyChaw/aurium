@@ -83,6 +83,7 @@ export const Aurium = {
   createProject: (body) => api.post("/v1/projects", body),
   addRepo: (id, body) => api.post(`/v1/projects/${enc(id)}/repos`, body),
   projectAgents: (id) => api.get(`/v1/projects/${enc(id)}/agents`),
+  spawnAgent: (id, body) => api.post(`/v1/projects/${enc(id)}/agents`, body),
   tree: (id) => api.get(`/v1/projects/${enc(id)}/tree`),
   tasks: (id) => api.get(`/v1/projects/${enc(id)}/tasks`),
 

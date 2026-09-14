@@ -19,7 +19,7 @@ func TestEveryDashboardModuleIsEmbedded(t *testing.T) {
 
 	want := []string{
 		"index.html", "style.css", "app.js",
-		"lib/api.js", "lib/dom.js", "lib/state.js", "lib/stream.js", "lib/theme.js",
+		"lib/api.js", "lib/dom.js", "lib/state.js", "lib/stream.js", "lib/theme.js", "lib/dialog.js",
 		"views/home.js", "views/workspace.js", "views/rail.js", "views/heartbeat.js",
 		"views/chat.js", "views/repos.js", "views/approvals.js", "views/usage.js",
 		"views/providers.js", "views/events.js",

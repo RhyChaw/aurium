@@ -8,6 +8,7 @@
 import { el, mount, shortID, ago } from "../lib/dom.js";
 import { state, update } from "../lib/state.js";
 import { Aurium } from "../lib/api.js";
+import { form } from "../lib/dialog.js";
 
 // The four colour bands. The daemon computes which one an agent is in
 // (internal/api/projects.go), so the CLI and any future client agree with this
@@ -61,10 +62,20 @@ function projectBlock(p) {
 
   const tiles = agents.length
     ? agents.map(agentTile)
-    : [el("p.rail-none", "no agents")];
+    : [el("p.rail-none", "No agents yet.")];
 
   return el("section.project-block", { class: isOpen ? "is-open" : "" }, header,
-    el("div.tiles", tiles));
+    el("div.tiles", tiles,
+      // The point of the button being here, inside the project, rather than in
+      // a toolbar: an agent belongs to a project, and which project is the
+      // first thing you would otherwise have to be asked.
+      el("button.tile.tile-add", {
+        onclick: (e) => { e.stopPropagation(); addAgent(p); },
+        title: `Add an agent to ${p.name}`,
+      },
+        el("span.tile-bar"),
+        el("span.tile-body",
+          el("span.tile-add-label", "+  add agent")))));
 }
 
 /**
@@ -100,6 +111,72 @@ function worstState(agents) {
     if (agents.some((t) => t.state === s)) return s;
   }
   return "done";
+}
+
+// Adapters, and whether you can talk to one. `shell` is a real choice — it is
+// a worktree and a prompt with no model behind it — but offering it without
+// saying so produces an agent whose chat box does nothing.
+const ADAPTERS = [
+  { value: "claude", label: "Claude", chats: true },
+  { value: "codex", label: "Codex", chats: true },
+  { value: "shell", label: "Shell — no chat, attach in a terminal", chats: false },
+];
+
+/**
+ * addAgent creates an agent and opens it.
+ *
+ * One dialog, because the two things worth deciding — which model, and which
+ * repository — are one decision. Everything else has a defensible default: a
+ * form asking for a branch name before you have said a word to the agent is a
+ * form standing between you and the point.
+ */
+export async function addAgent(p) {
+  const detail = state.detail[p.id] ?? {};
+  const repos = detail.repositories ?? [];
+
+  if (repos.length === 0) {
+    update({ notice: `${p.name} has no repositories yet — add one first.` });
+    return;
+  }
+
+  const fields = [{
+    key: "adapter",
+    label: "Agent",
+    options: ADAPTERS.map((a) => ({
+      value: a.value, label: a.label, selected: a.value === "claude",
+    })),
+  }];
+  if (repos.length > 1) {
+    fields.push({
+      key: "repo_id",
+      label: "Repository",
+      hint: "It gets its own branch and worktree here.",
+      options: repos.map((r) => ({ value: r.id, label: basename(r.path) })),
+    });
+  }
+
+  const answer = await form("New agent",
+    `In ${p.name}. It gets a branch of its own, so it cannot tread on anything else.`,
+    fields, "Create agent");
+  if (!answer) return;
+
+  update({ notice: "Creating an agent…" });
+  try {
+    const out = await Aurium.spawnAgent(p.id, {
+      repo_id: answer.repo_id ?? repos[0].id,
+      adapter: answer.adapter,
+    });
+    await refreshProjectAgents(p.id);
+    update({ openProject: p.id, notice: null });
+    await openAgent(out.agent.id);
+  } catch (err) {
+    update({ notice: err.message ?? String(err) });
+  }
+}
+
+function basename(path) {
+  const parts = String(path ?? "").split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? path;
 }
 
 /** openProject selects a project and loads what the other panes need. */

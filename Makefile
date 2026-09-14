@@ -5,21 +5,27 @@ GO ?= go
 PKGS = ./...
 GOBIN ?= $(HOME)/sdk/gobin
 
-.PHONY: run run-desktop build test test-race vet fmt lint tools clean
+.PHONY: run run-web run-desktop build test test-race vet fmt lint tools clean
 
-# The one command. Builds, starts the daemon in this terminal and opens the
-# dashboard when it answers; Ctrl-C stops it.
+# The one command. Starts the daemon and opens Aurium — in its own window if the
+# Rust toolchain is here, in a browser tab otherwise.
 #
-# `aurium dashboard` also starts a daemon, but detached — right when you want it
-# to outlive the terminal, wrong as the first thing anybody runs, because
-# nothing on screen then corresponds to a process you can stop.
-run: build
+# Preferring the window is not cosmetic. The page carries a credential, so a
+# browser tab means a token in a window with a URL bar, forty other tabs and a
+# history; the shell has none of those and adds native notifications, which is
+# the only thing that reaches you when an agent is blocked and the window is
+# behind something else.
+run:
+	@if command -v cargo >/dev/null 2>&1 && cargo tauri --version >/dev/null 2>&1; then $(MAKE) --no-print-directory run-desktop; else echo "No Tauri toolchain found, opening in a browser instead. For the native window: cargo install tauri-cli --version '^2'"; $(MAKE) --no-print-directory run-web; fi
+
+# Explicitly the browser. Useful on a machine with no Rust, and for looking at
+# the page with devtools.
+run-web: build
 	./bin/aurium up
 
-# The same thing in a native window instead of a browser tab. Needs the Tauri 2
-# prerequisites and `cargo install tauri-cli --version "^2"`; the Rust side has
-# never been compiled on this machine, so expect the toolchain to have opinions
-# the first time. See desktop/README.md.
+# Explicitly the native window. The daemon is detached here because the window,
+# not this terminal, is the thing you close to be done — and `cargo tauri dev`
+# already owns the foreground.
 run-desktop: build
 	./bin/aurium up --detach --no-open
 	cd desktop && cargo tauri dev

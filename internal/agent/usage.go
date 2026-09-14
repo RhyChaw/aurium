@@ -29,15 +29,48 @@ type UsageParser interface {
 	ParseUsage(stdout string) (UsageReport, bool)
 }
 
+// ErrorReporter is implemented by adapters whose headless output can report a
+// failure while still exiting zero. `claude -p` does: an envelope with
+// is_error true and a result explaining why.
+type ErrorReporter interface {
+	// ReportedError returns true when the output says the run failed,
+	// whatever the exit code was.
+	ReportedError(stdout string) bool
+}
+
+// ReplyParser is implemented by adapters whose headless output wraps the
+// agent's answer in an envelope. Separate from UsageParser because the two are
+// different questions — what did it say, and what did it cost — and an adapter
+// may well be able to answer one and not the other.
+type ReplyParser interface {
+	// ParseReply extracts the agent's answer from a headless run's stdout.
+	// False means the output was not an envelope this adapter recognises, and
+	// the caller should fall back to showing the raw output rather than
+	// showing nothing.
+	ParseReply(stdout string) (string, bool)
+}
+
 // claudeJSONResult is the shape of `claude -p --output-format json`.
 //
-// UNVERIFIED, for the same reason the rest of the claude adapter is: this was
-// written from the documented output format and no run has been observed. It
-// is parsed defensively — every field is optional, an unrecognised payload
-// yields no report rather than a wrong one, and nothing here fails a run.
+// VERIFIED against a real `claude -p --output-format json` run on 2026-09-14:
+// the envelope is one line carrying `result`, `is_error`, `subtype`,
+// `total_cost_usd`, `usage` (with the three cache/input counts and
+// `output_tokens`) and `modelUsage`. It carries no top-level `model`.
+//
+// Still parsed defensively — every field is optional, an unrecognised payload
+// yields no report rather than a wrong one, and nothing here fails a run —
+// because the format is the CLI's to change.
 type claudeJSONResult struct {
-	Model string `json:"model"`
-	Usage struct {
+	Model   string `json:"model"`
+	Result  string `json:"result"`
+	IsError bool   `json:"is_error"`
+	Type    string `json:"type"`
+	// ModelUsage is keyed by model name. Verified against a real run on
+	// 2026-09-14: the envelope carries no top-level `model`, so this is the
+	// only place the model appears — and a usage row with an empty model
+	// cannot be priced or grouped.
+	ModelUsage map[string]json.RawMessage `json:"modelUsage"`
+	Usage      struct {
 		InputTokens  int64 `json:"input_tokens"`
 		OutputTokens int64 `json:"output_tokens"`
 		// Cache reads and writes are billed at different rates. They are
@@ -66,7 +99,7 @@ func (c *Claude) ParseUsage(stdout string) (UsageReport, bool) {
 			continue
 		}
 		report := UsageReport{
-			Model: r.Model, InputTokens: in, OutputTokens: r.Usage.OutputTokens,
+			Model: r.modelName(), InputTokens: in, OutputTokens: r.Usage.OutputTokens,
 		}
 		// The CLI's own figure beats Aurium's price table when it is there:
 		// it knows the account's actual rates and Aurium does not.
@@ -76,6 +109,58 @@ func (c *Claude) ParseUsage(stdout string) (UsageReport, bool) {
 		return report, true
 	}
 	return UsageReport{}, false
+}
+
+// modelName returns the model this run used.
+//
+// Top-level `model` first because a future envelope may add one; otherwise the
+// single key of modelUsage. With several — a run that fell back mid-turn — the
+// lexically first is chosen so the value is at least stable, and the token
+// counts are already a total across all of them.
+func (r claudeJSONResult) modelName() string {
+	if r.Model != "" {
+		return r.Model
+	}
+	best := ""
+	for name := range r.ModelUsage {
+		if best == "" || name < best {
+			best = name
+		}
+	}
+	return best
+}
+
+// ParseReply pulls the answer out of Claude Code's JSON envelope.
+//
+// Falling back to raw stdout when this fails is deliberate: showing the user a
+// wall of JSON is ugly, and showing them nothing is a bug.
+func (c *Claude) ParseReply(stdout string) (string, bool) {
+	for _, line := range lastLinesFirst(stdout) {
+		var r claudeJSONResult
+		if err := json.Unmarshal([]byte(line), &r); err != nil {
+			continue
+		}
+		if strings.TrimSpace(r.Result) == "" {
+			continue
+		}
+		return strings.TrimSpace(r.Result), true
+	}
+	return "", false
+}
+
+// ReportedError honours the envelope's own verdict. A zero exit with
+// is_error true is a failure, and painting that tile green would be a lie.
+func (c *Claude) ReportedError(stdout string) bool {
+	for _, line := range lastLinesFirst(stdout) {
+		var r claudeJSONResult
+		if err := json.Unmarshal([]byte(line), &r); err != nil {
+			continue
+		}
+		if r.Type == "result" || r.Result != "" {
+			return r.IsError
+		}
+	}
+	return false
 }
 
 // lastLinesFirst returns the non-empty, brace-delimited lines of s, last

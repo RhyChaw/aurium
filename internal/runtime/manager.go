@@ -20,6 +20,7 @@ import (
 	"github.com/RhyChaw/aurium/internal/config"
 	"github.com/RhyChaw/aurium/internal/events"
 	"github.com/RhyChaw/aurium/internal/gitx"
+	"github.com/RhyChaw/aurium/internal/ipc"
 	"github.com/RhyChaw/aurium/internal/runtime/driver"
 	"github.com/RhyChaw/aurium/internal/runtime/image"
 	"github.com/RhyChaw/aurium/internal/store"
@@ -46,6 +47,13 @@ type Manager struct {
 	AuriumURL string
 	// DockerBin is echoed in attach commands shown to the user.
 	DockerBin string
+
+	// IPC records what an agent says back, which is what puts a reply in the
+	// dashboard's chat pane. Optional: without it a turn still runs and is
+	// still metered, it just leaves no transcript.
+	IPC *ipc.Bus
+	// Usage meters conversation turns (§D26). Optional.
+	Usage UsageMeter
 
 	// Credentials resolves a connected provider account into the single
 	// environment variable an agent needs (§D24). Optional: with no resolver,
