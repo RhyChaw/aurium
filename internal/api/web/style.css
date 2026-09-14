@@ -91,16 +91,25 @@
 /* The shell is a column that fills the viewport, so the workspace can hand its
    panes a real height to scroll inside. Without it the three panes grow with
    their content and the page scrolls as one, which puts the composer below the
-   fold exactly when there is a lot to read. */
+   fold exactly when there is a lot to read.
+
+   Flex, not grid. A positional `grid-template-rows` is wrong here because the
+   notice line is `hidden` most of the time — a hidden element is not a grid
+   item, so every row below it shifts up and `main` inherits `auto` while the
+   footer takes the `1fr`. Flex has no positional rows to slip. */
 body {
   margin: 0;
   height: 100vh;
-  display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
   color: var(--text);
   font: 14px/1.5 var(--sans);
 }
+body > header,
+body > nav,
+body > .notice,
+body > .hint-bar { flex: 0 0 auto; }
 
 header {
   display: flex;
@@ -164,6 +173,7 @@ nav {
 [hidden] { display: none !important; }
 
 main {
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   padding: 1.1rem 1.25rem;

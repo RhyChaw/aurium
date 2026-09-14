@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/RhyChaw/aurium/internal/app"
 	"github.com/RhyChaw/aurium/internal/gateway"
@@ -188,11 +190,23 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":  "ok",
 		"version": Version,
+		// Identity, so a client can tell this daemon from a stale one left
+		// running by an older build. Version alone cannot: a dev build keeps
+		// the same string across every rebuild, which is exactly when a
+		// forgotten daemon is most confusing.
+		"pid":        os.Getpid(),
+		"started_at": StartedAt.UTC().Format(time.RFC3339),
+		"uptime":     time.Since(StartedAt).Truncate(time.Second).String(),
 	})
 }
 
 // Version is stamped at build time.
 var Version = "0.1.0-dev"
+
+// StartedAt is when this process began serving. It is package state rather
+// than a Server field because health is the one route that must answer before
+// anything else is wired up.
+var StartedAt = time.Now()
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")

@@ -34,6 +34,7 @@ func Execute() error {
 	root.PersistentFlags().BoolVarP(&flagVerbose, "verbose", "v", false, "echo git and docker commands")
 
 	root.AddCommand(
+		newUpCmd(),
 		newInitCmd(),
 		newContainerCmd(),
 		newTreeCmd(),

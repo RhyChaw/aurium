@@ -3,11 +3,15 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/RhyChaw/aurium/internal/daemon"
@@ -44,6 +48,19 @@ func newDaemonCmd() *cobra.Command {
 	start.Flags().StringVar(&addr, "addr", daemon.DefaultAddr, "loopback address")
 	start.Flags().BoolVar(&foreground, "foreground", false, "run in the foreground")
 
+	stop := &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the daemon listening on this address",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := StopDaemon(addr); err != nil {
+				return exitf(CodeUsage, "%v", err)
+			}
+			fmt.Printf("auriumd on %s stopped\n", addr)
+			return nil
+		},
+	}
+	stop.Flags().StringVar(&addr, "addr", daemon.DefaultAddr, "loopback address")
+
 	status := &cobra.Command{
 		Use:   "status",
 		Short: "Report whether the daemon is running",
@@ -62,7 +79,7 @@ func newDaemonCmd() *cobra.Command {
 	}
 	status.Flags().StringVar(&addr, "addr", daemon.DefaultAddr, "loopback address")
 
-	cmd.AddCommand(start, status)
+	cmd.AddCommand(start, stop, status)
 	return cmd
 }
 
@@ -137,6 +154,83 @@ func StartDaemon(addr string) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 	return fmt.Errorf("auriumd did not become healthy within 5s")
+}
+
+// StopDaemon asks the daemon on addr to shut down, and waits for it to.
+//
+// SIGTERM rather than SIGKILL: the daemon's own handler closes its listeners,
+// removes its socket and closes the database. Killing it outright would leave
+// a stale socket and a database mid-write, which is the state `aurium up` then
+// has to explain.
+//
+// The pid comes from /v1/health, which is unauthenticated by design — but this
+// only ever signals a process on loopback that answered as auriumd, and the
+// daemon is per-user, so the signal is one the caller could send anyway.
+func StopDaemon(addr string) error {
+	if addr == "" {
+		addr = daemon.DefaultAddr
+	}
+	health, err := DaemonHealth(addr)
+	if err != nil {
+		return fmt.Errorf("nothing is listening on %s", addr)
+	}
+
+	pid := 0
+	if raw, ok := health["pid"].(float64); ok && raw > 0 { // JSON numbers decode as float64
+		pid = int(raw)
+	} else {
+		// A daemon old enough not to report its pid is precisely the one worth
+		// replacing, so falling back to asking the OS who holds the port is
+		// what makes --restart work in the case it exists for.
+		pid = pidOnPort(addr)
+		if pid == 0 {
+			return fmt.Errorf("the daemon on %s reports no pid and nothing could be "+
+				"found holding that port; stop it by hand (`ps aux | grep auriumd`)", addr)
+		}
+	}
+
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return fmt.Errorf("finding auriumd (pid %d): %w", pid, err)
+	}
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		return fmt.Errorf("stopping auriumd (pid %d): %w", pid, err)
+	}
+
+	// Wait for the listener to actually go, so a caller that starts a
+	// replacement does not race the old one for the port.
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := DaemonHealth(addr); err != nil {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("auriumd (pid %d) did not stop within 10s", pid)
+}
+
+// pidOnPort asks the OS which process is listening on addr's port.
+//
+// Shelling out to lsof rather than reading /proc or a platform API: this is a
+// fallback for an old daemon on a developer's machine, and a failure here is
+// reported rather than fatal.
+func pidOnPort(addr string) int {
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0
+	}
+	out, err := exec.Command("lsof", "-ti", "tcp:"+port, "-sTCP:LISTEN").Output()
+	if err != nil {
+		return 0
+	}
+	// Several lines if several processes hold it; the first is enough, and a
+	// second pass of --restart would get the next.
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if pid, err := strconv.Atoi(strings.TrimSpace(line)); err == nil && pid > 0 {
+			return pid
+		}
+	}
+	return 0
 }
 
 // DaemonHealth queries /v1/health, which needs no token.

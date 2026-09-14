@@ -147,13 +147,31 @@ components:
 paths:
   /v1/health:
     get:
-      summary: Liveness
+      summary: Liveness and process identity
       description: |
         Deliberately unauthenticated: the CLI polls it to decide whether the
         daemon it just spawned is up, before it has read a token.
+
+        It also reports `pid`, `started_at` and `uptime`. A dev build carries the
+        same `version` across every rebuild, so without those a client cannot
+        tell the daemon it started ten seconds ago from one left running since
+        Tuesday on an older binary — and only the second will be missing the
+        route the caller is looking for. `aurium up` warns on it and
+        `aurium daemon stop` signals the pid.
       security: []
       responses:
-        "200": { description: The daemon is running }
+        "200":
+          description: The daemon is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  version: { type: string }
+                  pid: { type: integer }
+                  started_at: { type: string, format: date-time }
+                  uptime: { type: string }
 
   /v1/events:
     get:

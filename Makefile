@@ -5,7 +5,24 @@ GO ?= go
 PKGS = ./...
 GOBIN ?= $(HOME)/sdk/gobin
 
-.PHONY: build test test-race vet fmt lint tools clean
+.PHONY: run run-desktop build test test-race vet fmt lint tools clean
+
+# The one command. Builds, starts the daemon in this terminal and opens the
+# dashboard when it answers; Ctrl-C stops it.
+#
+# `aurium dashboard` also starts a daemon, but detached — right when you want it
+# to outlive the terminal, wrong as the first thing anybody runs, because
+# nothing on screen then corresponds to a process you can stop.
+run: build
+	./bin/aurium up
+
+# The same thing in a native window instead of a browser tab. Needs the Tauri 2
+# prerequisites and `cargo install tauri-cli --version "^2"`; the Rust side has
+# never been compiled on this machine, so expect the toolchain to have opinions
+# the first time. See desktop/README.md.
+run-desktop: build
+	./bin/aurium up --detach --no-open
+	cd desktop && cargo tauri dev
 
 build:
 	$(GO) build -o bin/aurium ./cmd/aurium

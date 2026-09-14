@@ -412,3 +412,35 @@ func TestDashboardIsServedWithTheTokenAndNoStore(t *testing.T) {
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
+
+// Health carries process identity, not just liveness.
+//
+// A dev build reports the same version string across every rebuild, so
+// `version` alone cannot distinguish the daemon you started ten seconds ago
+// from one left running since last week on an older binary — and only the
+// second is missing the route you are looking for. The CLI keys its
+// stale-daemon warning off these fields.
+func TestHealthReportsProcessIdentity(t *testing.T) {
+	h := newHarness(t)
+
+	res := h.do("GET", "/v1/health", "", "")
+	defer res.Body.Close()
+
+	var out map[string]any
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"status", "version", "pid", "started_at", "uptime"} {
+		if _, ok := out[key]; !ok {
+			t.Errorf("health is missing %q: %v", key, out)
+		}
+	}
+	if pid, ok := out["pid"].(float64); !ok || pid <= 0 {
+		t.Fatalf("pid = %v, want this process", out["pid"])
+	}
+	if ts, ok := out["started_at"].(string); !ok {
+		t.Fatalf("started_at = %v", out["started_at"])
+	} else if _, err := time.Parse(time.RFC3339, ts); err != nil {
+		t.Fatalf("started_at %q is not RFC 3339: %v", ts, err)
+	}
+}

@@ -44,7 +44,8 @@ Docker-dependent tests exist behind a tag was false.
 | `snapshot.include_ignored` | Honoured for the git tree. Volume archiving is untested. | Partial. |
 | Admission control (§13 wk10) | Not implemented. `containers.status` has `queued`; nothing sets it. | No memory budget. |
 | `aurium pr` (§12.1) | Not implemented. | Phase C gate's "PR created through the gateway" was never demonstrated end to end. |
-| `aurium push`, `reparent`, `logs`, `agent message/exec` | Not implemented. | Listed in §12.1, absent. |
+| `aurium push`, `reparent`, `logs`, `agent message/exec` | Not implemented. | Listed in §12.1, absent. `agent message` is reachable through the dashboard and `POST /v1/agents/{a}/message`, just not the CLI. |
+| Stopping a daemon on Windows | `aurium daemon stop` signals the pid with SIGTERM, which Go does not support on Windows. | The command reports the failure rather than pretending; native Windows is a non-goal through Phase D anyway. |
 | Podman driver | `NewDocker("podman")` exists; the three documented flag differences are not handled. | Untested. |
 | `api/openapi.yaml` | Committed, with `internal/api/openapi_test.go` failing in either direction. | **closed** |
 | Dashboard v1 (§11.3) | Approvals, Agents and per-project surfaces shipped (2026-09-14). **Context browsing and the integrations grants matrix are still absent** — the gateway's grants can only be read and changed through `aurium integration`. | Two of the four v1 tabs remain CLI-only. |

@@ -24,6 +24,24 @@ a container can be *stacked* on another and kept up to date by rebasing onto a
 | **D (part)** | Tauri shell, dashboard v1, provider accounts, usage | **done** |
 | D (rest) | Plugins, podman parity, sidecars, provider proxy | out of scope |
 
+## Run it
+
+```sh
+make run
+```
+
+That builds everything, starts the daemon in your terminal and opens the
+dashboard when it answers. Ctrl-C stops it. With an installed binary it is
+`aurium up`.
+
+If a daemon is already listening it says so rather than starting a second one —
+and if that daemon predates the build you just made, it says *that*, because
+otherwise you would be looking at an older version of the app and wondering
+where your change went. `aurium up --restart` replaces it.
+
+`make run-desktop` does the same in a native window instead of a browser tab
+(needs the Tauri toolchain; see [`desktop/`](desktop/README.md)).
+
 ## Quick start
 
 ```sh
