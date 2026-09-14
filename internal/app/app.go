@@ -18,11 +18,13 @@ import (
 	"github.com/RhyChaw/aurium/internal/gateway"
 	"github.com/RhyChaw/aurium/internal/gitx"
 	"github.com/RhyChaw/aurium/internal/ipc"
+	"github.com/RhyChaw/aurium/internal/providers"
 	"github.com/RhyChaw/aurium/internal/runtime"
 	"github.com/RhyChaw/aurium/internal/runtime/driver"
 	"github.com/RhyChaw/aurium/internal/runtime/image"
 	"github.com/RhyChaw/aurium/internal/secrets"
 	"github.com/RhyChaw/aurium/internal/store"
+	"github.com/RhyChaw/aurium/internal/usage"
 )
 
 // App holds every long-lived component.
@@ -34,7 +36,11 @@ type App struct {
 	IPC     *ipc.Bus
 	Gateway *gateway.Gateway
 	Secrets *secrets.Store
-	Home    string
+	// Providers connects the model accounts agents run on (§D24).
+	Providers *providers.Manager
+	// Usage meters what those accounts spend (§D26).
+	Usage *usage.Recorder
+	Home  string
 }
 
 // Home returns ~/.aurium, creating it if needed.
@@ -89,20 +95,62 @@ func Open(verbose bool) (*App, error) {
 	gw := gateway.New(st, bus, cx, msgs)
 	gw.Snapshots = &managerSnapshots{mgr: mgr, app: nil}
 
+	sec := secrets.New(&secrets.FileFallback{Path: filepath.Join(home, "secrets")})
 	a := &App{
 		Store: st, Events: bus, Manager: mgr,
 		Context: cx, IPC: msgs, Gateway: gw,
-		Secrets: secrets.New(&secrets.FileFallback{Path: filepath.Join(home, "secrets")}),
-		Home:    home,
+		Secrets:   sec,
+		Providers: providers.New(st, sec, bus),
+		Usage:     usage.New(st, bus),
+		Home:      home,
 	}
+	// The runtime asks for credentials and reports usage through narrow
+	// interfaces rather than importing these packages, so the dependency runs
+	// one way: the thing that holds secrets knows about containers, not the
+	// reverse.
+	mgr.Credentials = &credentials{providers: a.Providers}
 	// The snapshot and delegation adapters need the app to resolve a
 	// project's config, so they are attached once it exists.
 	gw.Snapshots = &managerSnapshots{mgr: mgr, app: a}
 	gw.Delegator = &runtime.Delegation{
 		Manager: mgr, IPC: msgs, MaxDepth: 1,
 		Config: a.ConfigForProject,
+		Usage:  &meter{recorder: a.Usage},
 	}
 	return a, nil
+}
+
+// credentials adapts the provider manager to what the runtime needs.
+type credentials struct{ providers *providers.Manager }
+
+// AccountFor picks the default connected account for an adapter's provider.
+func (c *credentials) AccountFor(ctx context.Context, adapter string) (string, bool) {
+	provider := usage.ProviderFor(adapter)
+	if provider == "" {
+		return "", false
+	}
+	acct, err := c.providers.Store.DefaultProviderAccount(ctx, provider)
+	if err != nil {
+		return "", false
+	}
+	return acct.ID, true
+}
+
+func (c *credentials) Resolve(ctx context.Context, accountID string) (string, string, error) {
+	return c.providers.Resolve(ctx, accountID)
+}
+
+// meter adapts the usage recorder to what the runtime needs.
+type meter struct{ recorder *usage.Recorder }
+
+func (m *meter) Meter(ctx context.Context, x runtime.Metered) error {
+	_, err := m.recorder.Record(ctx, usage.Call{
+		ProjectID: x.ProjectID, ContainerID: x.ContainerID, AgentID: x.AgentID,
+		Adapter: x.Adapter, Model: x.Model, Kind: x.Kind, AccountID: x.AccountID,
+		InputTokens: x.InputTokens, OutputTokens: x.OutputTokens,
+		CostUSD: x.CostUSD, HasCost: x.HasCost,
+	})
+	return err
 }
 
 // ConfigForProject loads a project's aurium.yaml.
@@ -166,6 +214,12 @@ func (a *App) Close() error { return a.Store.Close() }
 // Project resolves the project containing dir, along with its config and repo
 // row. It walks up from the working directory, so commands work from anywhere
 // inside a project — including inside a container worktree.
+//
+// D23: the repository, not the root path, is what resolves the project. A
+// project rooted at its own repo (the standalone case) still resolves, because
+// `aurium init` registers a repository row at that path too. Looking the
+// project up by root instead would tie every project to exactly one repository
+// forever, which is the limitation multi-repo projects exist to remove.
 func (a *App) Project(ctx context.Context, dir string) (store.Project, store.Repository, *config.Config, error) {
 	cfgPath, err := config.Find(CanonicalPath(dir))
 	if err != nil {
@@ -174,7 +228,7 @@ func (a *App) Project(ctx context.Context, dir string) (store.Project, store.Rep
 	root := CanonicalPath(filepath.Dir(cfgPath))
 
 	// A worktree sits at <root>/.aurium/wt/<slug>, so if we landed inside one,
-	// climb back out to the real project root.
+	// climb back out to the real repository root.
 	if realRoot, ok := projectRootOfWorktree(root); ok {
 		root = realRoot
 		cfgPath = filepath.Join(root, config.Filename)
@@ -185,12 +239,12 @@ func (a *App) Project(ctx context.Context, dir string) (store.Project, store.Rep
 		return store.Project{}, store.Repository{}, nil, err
 	}
 
-	p, err := a.Store.ProjectByRoot(ctx, root)
+	repo, err := a.Store.RepositoryByPathAny(ctx, root)
 	if err != nil {
 		return store.Project{}, store.Repository{}, nil,
-			fmt.Errorf("app: %s is not initialised; run `aurium init`: %w", root, err)
+			fmt.Errorf("app: %s is not registered with any project; run `aurium init`: %w", root, err)
 	}
-	repo, err := a.Store.RepositoryByPath(ctx, p.ID, root)
+	p, err := a.Store.GetProject(ctx, repo.ProjectID)
 	if err != nil {
 		return store.Project{}, store.Repository{}, nil, err
 	}

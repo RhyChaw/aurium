@@ -68,16 +68,21 @@ const (
 	AgentError    = "error"
 )
 
-// Project is a repository root Aurium manages.
+// Project is a set of repositories Aurium manages together (§D22).
 type Project struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Root      string `json:"root"`
-	CreatedAt string `json:"created_at"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Root string `json:"root"`
+	// Descriptor is the path of this project's aurium.project.yaml. It is
+	// empty exactly for standalone projects — a single repository registered
+	// by `aurium init` with no descriptor — so "is this a multi-repo project"
+	// is a column read rather than a filesystem probe.
+	Descriptor string `json:"descriptor,omitempty"`
+	CreatedAt  string `json:"created_at"`
 }
 
-// Repository is a git repository inside a project. The data model allows
-// several per project (§2 non-goals: the runtime does not yet).
+// Repository is a git repository inside a project. A project may hold several
+// (§D22); each keeps its own aurium.yaml for sandbox settings.
 type Repository struct {
 	ID         string `json:"id"`
 	ProjectID  string `json:"project_id"`
@@ -160,4 +165,10 @@ type Agent struct {
 	Status         string `json:"status"`
 	StartedAt      string `json:"started_at"`
 	LastActivityAt string `json:"last_activity_at"`
+	// ProviderAccountID is which connected account this agent's credential
+	// comes from (§D24). Empty for `shell`, which has no provider.
+	ProviderAccountID string `json:"provider_account_id,omitempty"`
+	// DisplayName is what the rail shows. Empty means "fall back to the
+	// adapter name", so nothing had to be backfilled when it was added.
+	DisplayName string `json:"display_name,omitempty"`
 }

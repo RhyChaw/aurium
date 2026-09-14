@@ -10,7 +10,8 @@ import (
 )
 
 const agentColumns = `id, container_id, adapter, role, COALESCE(parent_agent_id,''),
-	tmux_session, COALESCE(model,''), status, COALESCE(started_at,''), COALESCE(last_activity_at,'')`
+	tmux_session, COALESCE(model,''), status, COALESCE(started_at,''), COALESCE(last_activity_at,''),
+	COALESCE(provider_account_id,''), COALESCE(display_name,'')`
 
 // CreateAgent registers an agent in a container.
 func (s *Store) CreateAgent(ctx context.Context, a Agent) (Agent, error) {
@@ -28,10 +29,12 @@ func (s *Store) CreateAgent(ctx context.Context, a Agent) (Agent, error) {
 
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO agents (id, container_id, adapter, role, parent_agent_id,
-			tmux_session, model, status, started_at, last_activity_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?)`,
+			tmux_session, model, status, started_at, last_activity_at,
+			provider_account_id, display_name)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
 		a.ID, a.ContainerID, a.Adapter, a.Role, nullable(a.ParentAgentID),
-		a.TmuxSession, nullable(a.Model), a.Status, a.StartedAt, a.LastActivityAt)
+		a.TmuxSession, nullable(a.Model), a.Status, a.StartedAt, a.LastActivityAt,
+		nullable(a.ProviderAccountID), a.DisplayName)
 	if err != nil {
 		return Agent{}, fmt.Errorf("store: create agent in %s: %w", a.ContainerID, err)
 	}
@@ -42,7 +45,8 @@ func (s *Store) GetAgent(ctx context.Context, id string) (Agent, error) {
 	var a Agent
 	err := s.db.QueryRowContext(ctx, `SELECT `+agentColumns+` FROM agents WHERE id = ?`, id).
 		Scan(&a.ID, &a.ContainerID, &a.Adapter, &a.Role, &a.ParentAgentID,
-			&a.TmuxSession, &a.Model, &a.Status, &a.StartedAt, &a.LastActivityAt)
+			&a.TmuxSession, &a.Model, &a.Status, &a.StartedAt, &a.LastActivityAt,
+			&a.ProviderAccountID, &a.DisplayName)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Agent{}, ErrNotFound
 	}
@@ -62,7 +66,8 @@ func (s *Store) ListAgents(ctx context.Context, containerID string) ([]Agent, er
 	for rows.Next() {
 		var a Agent
 		if err := rows.Scan(&a.ID, &a.ContainerID, &a.Adapter, &a.Role, &a.ParentAgentID,
-			&a.TmuxSession, &a.Model, &a.Status, &a.StartedAt, &a.LastActivityAt); err != nil {
+			&a.TmuxSession, &a.Model, &a.Status, &a.StartedAt, &a.LastActivityAt,
+			&a.ProviderAccountID, &a.DisplayName); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -118,4 +123,36 @@ func (s *Store) SetAgentParent(ctx context.Context, id, parentAgentID string) er
 		return err
 	}
 	return mustAffect(res, "agent", id)
+}
+
+// ListProjectAgents returns every agent in a project, in one query.
+//
+// The rail draws every project at once, so doing this per container would be
+// one query per container on every redraw of a page that redraws on every
+// event. The join is the whole reason this method exists rather than callers
+// looping over ListAgents.
+func (s *Store) ListProjectAgents(ctx context.Context, projectID string) ([]Agent, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT a.id, a.container_id, a.adapter, a.role, COALESCE(a.parent_agent_id,''),
+		        a.tmux_session, COALESCE(a.model,''), a.status,
+		        COALESCE(a.started_at,''), COALESCE(a.last_activity_at,''),
+		        COALESCE(a.provider_account_id,''), COALESCE(a.display_name,'')
+		 FROM agents a JOIN containers c ON c.id = a.container_id
+		 WHERE c.project_id = ? ORDER BY a.id`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Agent
+	for rows.Next() {
+		var a Agent
+		if err := rows.Scan(&a.ID, &a.ContainerID, &a.Adapter, &a.Role, &a.ParentAgentID,
+			&a.TmuxSession, &a.Model, &a.Status, &a.StartedAt, &a.LastActivityAt,
+			&a.ProviderAccountID, &a.DisplayName); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
 }

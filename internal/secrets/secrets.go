@@ -22,10 +22,47 @@ const Service = "aurium"
 // ErrNotFound is returned when no secret is stored for a reference.
 var ErrNotFound = errors.New("secrets: not found")
 
+// Keyring is the OS credential store. It is an interface with exactly one
+// production implementation so that tests — and a future age-encrypted
+// backend — can stand in without reaching the developer's real login keychain,
+// which on macOS means a modal dialog in the middle of a test run.
+type Keyring interface {
+	Set(service, account, secret string) error
+	Get(service, account string) (string, error)
+	Delete(service, account string) error
+}
+
+// osKeyring is the real thing.
+type osKeyring struct{}
+
+func (osKeyring) Set(service, account, secret string) error {
+	return keyring.Set(service, account, secret)
+}
+func (osKeyring) Get(service, account string) (string, error) {
+	return keyring.Get(service, account)
+}
+func (osKeyring) Delete(service, account string) error {
+	return keyring.Delete(service, account)
+}
+
+// ErrKeyringUnavailable is what a Keyring returns when there is none. It is
+// matched against keyring.ErrNotFound's role in the fallback logic, so a stand
+// -in implementation can express "nothing here" the same way.
+var ErrKeyringUnavailable = errors.New("secrets: no keyring")
+
 // Store reads and writes credentials.
 type Store struct {
 	// Fallback is used where no OS keyring exists (headless Linux, CI).
 	Fallback Fallback
+	// Keyring defaults to the OS keyring when nil.
+	Keyring Keyring
+}
+
+func (s *Store) ring() Keyring {
+	if s.Keyring != nil {
+		return s.Keyring
+	}
+	return osKeyring{}
 }
 
 // Fallback is a secondary store for machines without a keyring.
@@ -65,7 +102,7 @@ func (s *Store) Set(projectName, integrationName, secret string) (string, error)
 		return "", err
 	}
 
-	if err := keyring.Set(Service, account, secret); err != nil {
+	if err := s.ring().Set(Service, account, secret); err != nil {
 		if s.Fallback == nil || !s.Fallback.Available() {
 			return "", fmt.Errorf("secrets: no OS keyring is available and no fallback is "+
 				"configured; run `aurium doctor` for details: %w", err)
@@ -88,11 +125,11 @@ func (s *Store) Get(ref string) (string, error) {
 		return "", err
 	}
 
-	secret, err := keyring.Get(Service, account)
+	secret, err := s.ring().Get(Service, account)
 	if err == nil {
 		return secret, nil
 	}
-	if errors.Is(err, keyring.ErrNotFound) && (s.Fallback == nil || !s.Fallback.Available()) {
+	if isMissing(err) && (s.Fallback == nil || !s.Fallback.Available()) {
 		return "", ErrNotFound
 	}
 	if s.Fallback != nil && s.Fallback.Available() {
@@ -111,11 +148,11 @@ func (s *Store) Delete(ref string) error {
 	if err != nil {
 		return err
 	}
-	kerr := keyring.Delete(Service, account)
+	kerr := s.ring().Delete(Service, account)
 	if s.Fallback != nil && s.Fallback.Available() {
 		_ = s.Fallback.Delete(account)
 	}
-	if kerr != nil && !errors.Is(kerr, keyring.ErrNotFound) {
+	if kerr != nil && !isMissing(kerr) {
 		return kerr
 	}
 	return nil
@@ -124,11 +161,18 @@ func (s *Store) Delete(ref string) error {
 // Available reports whether any secret store works on this machine.
 func (s *Store) Available() bool {
 	probe := "aurium-availability-probe"
-	if err := keyring.Set(Service, probe, "x"); err == nil {
-		_ = keyring.Delete(Service, probe)
+	if err := s.ring().Set(Service, probe, "x"); err == nil {
+		_ = s.ring().Delete(Service, probe)
 		return true
 	}
 	return s.Fallback != nil && s.Fallback.Available()
+}
+
+// isMissing reports "there is no such secret", whichever backend said so.
+func isMissing(err error) bool {
+	return errors.Is(err, keyring.ErrNotFound) ||
+		errors.Is(err, ErrNotFound) ||
+		errors.Is(err, ErrKeyringUnavailable)
 }
 
 // FileFallback stores secrets in a file under ~/.aurium.

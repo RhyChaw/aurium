@@ -34,6 +34,9 @@ const (
 	ContextItem = "ci"
 	Proposal    = "cp"
 	Token       = "tok"
+	// Dashboard v1 (§D24, §D26).
+	ProviderAccount = "pa"
+	Usage           = "u"
 )
 
 // crockford is the base32 alphabet from Crockford's spec: the digits plus the

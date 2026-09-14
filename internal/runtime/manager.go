@@ -46,6 +46,26 @@ type Manager struct {
 	AuriumURL string
 	// DockerBin is echoed in attach commands shown to the user.
 	DockerBin string
+
+	// Credentials resolves a connected provider account into the single
+	// environment variable an agent needs (§D24). Optional: with no resolver,
+	// or no connected account, Aurium falls back to aurium.yaml's
+	// env_passthrough, which is how it worked before accounts existed.
+	Credentials Credentials
+}
+
+// Credentials is the runtime's view of provider accounts. The interface exists
+// so internal/runtime does not import internal/providers, which would make the
+// dependency run the wrong way: the thing that holds secrets should depend on
+// the thing that runs containers, not the reverse.
+type Credentials interface {
+	// AccountFor picks the account an agent on this adapter should use, or
+	// returns false when none is connected.
+	AccountFor(ctx context.Context, adapter string) (accountID string, ok bool)
+	// Resolve returns the environment variable name and value for an account.
+	// An empty name means the account holds no credential of its own — the
+	// agent's CLI has its own login — and nothing should be injected.
+	Resolve(ctx context.Context, accountID string) (name, value string, err error)
 }
 
 // CreateOpts describes a container to create.
@@ -76,6 +96,9 @@ type CreateOpts struct {
 	StartRef string
 	// Token is the container's scoped bearer token, if the daemon issued one.
 	Token string
+	// ProviderAccountID pins this container's agent to one connected account.
+	// Empty means "whichever account is the default for the adapter".
+	ProviderAccountID string
 }
 
 // DestroyOpts controls teardown.
@@ -258,7 +281,8 @@ func (m *Manager) Create(ctx context.Context, o CreateOpts) (store.Container, er
 	}
 
 	if !o.NoAgent {
-		if _, err := m.startAgent(ctx, c, o.Adapter, o.Role, o.Model, agent.StartOpts{}); err != nil {
+		if _, err := m.startAgent(ctx, c, o.Adapter, o.Role, o.Model, o.ProviderAccountID,
+			agent.StartOpts{}); err != nil {
 			rollback()
 			return store.Container{}, err
 		}
@@ -300,6 +324,15 @@ func (m *Manager) buildSpec(ctx context.Context, o CreateOpts, c store.Container
 		if v, ok := os.LookupEnv(name); ok {
 			env = append(env, name+"="+v)
 		}
+	}
+	// A connected account wins over env_passthrough. The passthrough takes
+	// whatever this terminal happened to export, which is not a choice anybody
+	// made; an account is. Appending after the loop is what makes it win —
+	// later entries override earlier ones in both docker and exec.
+	if name, value, err := m.credentialFor(ctx, o.Adapter, o.ProviderAccountID); err != nil {
+		return driver.Spec{}, "", err
+	} else if name != "" {
+		env = append(env, name+"="+value)
 	}
 	// D3/§5.4: git inside the container must use the guard hooks and the
 	// host's identity.
@@ -382,17 +415,58 @@ func (m *Manager) buildSpec(ctx context.Context, o CreateOpts, c store.Container
 	return spec, home, nil
 }
 
+// credentialFor resolves the provider credential an adapter should run on.
+//
+// A missing or broken account is not fatal here: the container still starts,
+// the agent still runs, and it fails with its own provider's error message,
+// which is more informative than anything Aurium could invent. The account is
+// marked broken by Resolve, so the dashboard says so.
+func (m *Manager) credentialFor(ctx context.Context, adapter, accountID string) (string, string, error) {
+	if m.Credentials == nil {
+		return "", "", nil
+	}
+	if accountID == "" {
+		id, ok := m.Credentials.AccountFor(ctx, adapter)
+		if !ok {
+			return "", "", nil
+		}
+		accountID = id
+	}
+	name, value, err := m.Credentials.Resolve(ctx, accountID)
+	if err != nil {
+		return "", "", nil
+	}
+	return name, value, nil
+}
+
+// accountIDFor is credentialFor's first half: which account an agent is
+// recorded as running on, whether or not a credential could be resolved.
+func (m *Manager) accountIDFor(ctx context.Context, adapter, accountID string) string {
+	if accountID != "" {
+		return accountID
+	}
+	if m.Credentials == nil {
+		return ""
+	}
+	if id, ok := m.Credentials.AccountFor(ctx, adapter); ok {
+		return id
+	}
+	return ""
+}
+
 // StartAgent starts an agent in an existing container.
 func (m *Manager) StartAgent(ctx context.Context, containerID, adapterName, role, model string) (store.Agent, error) {
 	c, err := m.Store.GetContainer(ctx, containerID)
 	if err != nil {
 		return store.Agent{}, err
 	}
-	return m.startAgent(ctx, c, adapterName, role, model, agent.StartOpts{})
+	return m.startAgent(ctx, c, adapterName, role, model, "", agent.StartOpts{})
 }
 
+// startAgent launches one agent. accountID pins it to a connected provider
+// account; empty means "the default for this adapter".
 func (m *Manager) startAgent(ctx context.Context, c store.Container,
-	adapterName, role, model string, o agent.StartOpts) (store.Agent, error) {
+	adapterName, role, model, accountID string, o agent.StartOpts) (store.Agent, error) {
 
 	adapter, ok := m.Adapters.Get(adapterName)
 	if !ok {
@@ -417,13 +491,18 @@ func (m *Manager) startAgent(ctx context.Context, c store.Container,
 		}
 	}
 
+	// Which account this agent is billed against (§D24). The credential
+	// itself was injected when the container was created — an agent started
+	// into an existing container inherits that environment — so this records
+	// the attribution rather than re-delivering a secret.
 	a, err := m.Store.CreateAgent(ctx, store.Agent{
-		ContainerID: c.ID,
-		Adapter:     adapterName,
-		Role:        role,
-		Model:       model,
-		TmuxSession: "agent",
-		Status:      store.AgentStarting,
+		ContainerID:       c.ID,
+		Adapter:           adapterName,
+		Role:              role,
+		Model:             model,
+		TmuxSession:       "agent",
+		Status:            store.AgentStarting,
+		ProviderAccountID: m.accountIDFor(ctx, adapterName, accountID),
 	})
 	if err != nil {
 		return store.Agent{}, err
@@ -542,7 +621,7 @@ func agentProjection(m *Manager, c store.Container, home string) agent.Projectio
 // $HOME, which the captured rootfs restored.
 func (m *Manager) startAgentResuming(ctx context.Context, c store.Container,
 	adapterName, role string, resume bool) (store.Agent, error) {
-	return m.startAgent(ctx, c, adapterName, role, "", agent.StartOpts{Resume: resume})
+	return m.startAgent(ctx, c, adapterName, role, "", "", agent.StartOpts{Resume: resume})
 }
 
 // isUnsupported reports whether err is a driver capability gap rather than a

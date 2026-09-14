@@ -35,6 +35,33 @@ type Delegation struct {
 	// MaxDepth caps delegation chains. 1 means workers cannot delegate
 	// (§9.4): without a cap, one prompt can fan out without bound.
 	MaxDepth int
+	// Usage meters headless runs. Optional: without it a serial delegation
+	// still runs, it is just not counted.
+	Usage UsageMeter
+}
+
+// UsageMeter records what a headless run spent (§D26). The interface keeps
+// internal/runtime from importing internal/usage, which would otherwise need
+// to import internal/runtime back to know what an agent is.
+type UsageMeter interface {
+	Meter(ctx context.Context, m Metered) error
+}
+
+// Metered is one headless run, as the runtime knows it.
+type Metered struct {
+	ProjectID    string
+	ContainerID  string
+	AgentID      string
+	AccountID    string
+	Adapter      string
+	Model        string
+	Kind         string
+	InputTokens  int64
+	OutputTokens int64
+	// CostUSD is the provider's own figure, when it reported one. It beats
+	// any price table: it knows the account's real rates.
+	CostUSD float64
+	HasCost bool
 }
 
 // Delegate runs a subtask (§9.4).
@@ -117,7 +144,7 @@ func (d *Delegation) fork(ctx context.Context, master store.Container, masterAge
 	// Start the agent first, then link it to its delegator. Creating the row
 	// up front would put two agents in the container and trip the "one
 	// interactive agent" check that startAgent performs (D15).
-	workerAgent, err := d.Manager.startAgent(ctx, worker, adapterName, store.RoleWorker, "",
+	workerAgent, err := d.Manager.startAgent(ctx, worker, adapterName, store.RoleWorker, "", "",
 		agent.StartOpts{Prompt: req.Prompt})
 	if err != nil {
 		// Leave the container: the human can inspect what went wrong, and
@@ -205,11 +232,50 @@ func (d *Delegation) serial(ctx context.Context, master store.Container, masterA
 		return gateway.DelegateResult{}, fmt.Errorf("runtime: serial delegation: %w", err)
 	}
 
+	// Meter what the run reported. A failure to record is never allowed to
+	// fail the delegation: the work already happened, and losing the count is
+	// a smaller harm than losing the result.
+	d.meter(ctx, master, masterAgent, adapter, res.Stdout)
+
 	output := res.Stdout
 	if res.ExitCode != 0 {
 		output = strings.TrimSpace(res.Stdout + "\n" + res.Stderr)
 	}
 	return gateway.DelegateResult{Mode: ModeSerial, Output: output}, nil
+}
+
+// meter records a headless run's usage when the adapter reported any.
+//
+// An adapter that does not implement UsageParser reports nothing, and nothing
+// is recorded — no estimate, no zero row. §D26: a cost view that quietly
+// under-reports is worse than one that shows a gap.
+func (d *Delegation) meter(ctx context.Context, c store.Container, a store.Agent,
+	adapter agent.Adapter, stdout string) {
+
+	if d.Usage == nil {
+		return
+	}
+	parser, ok := adapter.(agent.UsageParser)
+	if !ok {
+		return
+	}
+	report, ok := parser.ParseUsage(stdout)
+	if !ok {
+		return
+	}
+	model := report.Model
+	if model == "" {
+		model = a.Model
+	}
+	_ = d.Usage.Meter(ctx, Metered{
+		ProjectID: c.ProjectID, ContainerID: c.ID, AgentID: a.ID,
+		AccountID: a.ProviderAccountID, Adapter: adapter.Name(), Model: model,
+		Kind:         "delegation",
+		InputTokens:  report.InputTokens,
+		OutputTokens: report.OutputTokens,
+		CostUSD:      report.CostUSD,
+		HasCost:      report.HasCost,
+	})
 }
 
 // Merge brings a worker's branch into the master's (§9.4).
