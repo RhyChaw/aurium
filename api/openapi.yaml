@@ -617,6 +617,36 @@ paths:
         "404": { description: Not found }
         "403": { description: Host-only }
 
+  /v1/drivers:
+    get:
+      summary: Which sandbox drivers work on this machine
+      description: |
+        Offering "docker" where Docker is stopped is offering a choice that
+        fails later, for reasons the dialog is in the best position to explain
+        and the worst position to discover. Each entry says whether it is
+        available, why not when it is not, and whether it isolates — a host
+        process and a container are materially different things and a user who
+        did not ask for the first must be told they got it.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drivers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        available: { type: boolean }
+                        reason: { type: string }
+                        isolated: { type: boolean }
+                        recommended: { type: boolean }
+        "403": { description: Host-only }
+
   /v1/github:
     get:
       summary: Whether Aurium can see your GitHub

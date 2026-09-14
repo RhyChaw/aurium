@@ -150,6 +150,15 @@ type Driver interface {
 	Name() string
 	Capabilities() Caps
 
+	// Available reports whether this driver can actually be used right now,
+	// and says why not when it cannot.
+	//
+	// It exists because the alternative is discovering it two layers down: a
+	// user with Docker stopped got "read aurium-mcp from …: no such file",
+	// which is true, useless, and about the wrong thing entirely. A driver
+	// that cannot run should say so before anything is created.
+	Available(ctx context.Context) error
+
 	Create(ctx context.Context, s Spec) (runtimeID string, err error)
 	Start(ctx context.Context, id string) error
 	Stop(ctx context.Context, id string) error

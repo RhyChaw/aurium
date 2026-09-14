@@ -104,6 +104,7 @@ export const Aurium = {
   connectProvider: (body) => api.post("/v1/providers", body),
   disconnectProvider: (id) => api.del(`/v1/providers/${enc(id)}`),
 
+  drivers: () => api.get("/v1/drivers"),
   github: () => api.get("/v1/github"),
   githubRepos: (limit = 100) => api.get(`/v1/github/repos?limit=${limit}`),
   githubClone: (project, body) => api.post(`/v1/projects/${enc(project)}/github/clone`, body),

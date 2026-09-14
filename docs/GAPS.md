@@ -33,7 +33,8 @@ Docker-dependent tests exist behind a tag was false.
 
 | Area | What is missing | Consequence |
 |---|---|---|
-| `aurium-mcp` in images | Not embedded in the CLI; `image.Builder.MCPBinary` points at `~/.aurium/bin/aurium-mcp`, which nothing populates. `make shim` cross-compiles it but nothing installs it there. | **The docker driver cannot build an image at all.** `image.Ensure` fails reading the binary. This is almost certainly why the Docker path has never worked end to end. |
+| `aurium-mcp` in images | **Fixed 2026-09-14.** `make build` depends on `shim`, which cross-compiles both architectures and installs them to `~/.aurium/bin/aurium-mcp-linux-<arch>`; the builder searches there, beside the running binary, and in a checkout's `bin/`. It is still not embedded in the CLI as the ERD intends — a checkout that has never run `make build` still has no shim, and the error now says so and names the command. | Closed for anyone who builds with make. |
+| Docker path end to end | Still **never run**. The shim gap is fixed, but no image has been built and no container started on this machine — Docker Desktop is not running here either. | The `local` driver is the proven path. |
 | Adapter verification | The `claude` and `codex` `Prepare()` paths are written from memory. No agent has ever been observed loading them. No nightly smoke job exists (§15 requires one). | Every container may be silently disconnected from Aurium. |
 | `notifications/tools/list_changed` | The handshake advertises `listChanged: true`; the gateway never emits the notification, and the stdio shim has no server→client channel to carry one. | An agent that listed tools before a grant change keeps a stale list for its whole session. Revoking a container mid-task (§62) does not take effect until the agent restarts. |
 | Upstream lifecycle | `RegisterUpstream` is called once at daemon start. No health check, no reconnect, no re-list. | If an upstream exits mid-session, every later call returns its death error until the daemon restarts. |
@@ -45,6 +46,7 @@ Docker-dependent tests exist behind a tag was false.
 | Admission control (§13 wk10) | Not implemented. `containers.status` has `queued`; nothing sets it. | No memory budget. |
 | `aurium pr` (§12.1) | Not implemented. | Phase C gate's "PR created through the gateway" was never demonstrated end to end. |
 | `aurium push`, `reparent`, `logs`, `agent message/exec` | Not implemented. | Listed in §12.1, absent. `agent message` is reachable through the dashboard and `POST /v1/agents/{a}/message`, just not the CLI. |
+| Driver default | `config.Template` hard-coded `driver: docker`. On a machine with Docker stopped that made a project whose every agent failed, several steps in, with a message about a missing file. Project creation now picks a driver that `Available()` says works, and `Manager.Create` refuses up front with a message naming the fix. | Closed. |
 | Stopping a daemon on Windows | `aurium daemon stop` signals the pid with SIGTERM, which Go does not support on Windows. | The command reports the failure rather than pretending; native Windows is a non-goal through Phase D anyway. |
 | Podman driver | `NewDocker("podman")` exists; the three documented flag differences are not handled. | Untested. |
 | `api/openapi.yaml` | Committed, with `internal/api/openapi_test.go` failing in either direction. | **closed** |

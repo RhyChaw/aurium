@@ -150,6 +150,16 @@ func (m *Manager) Create(ctx context.Context, o CreateOpts) (store.Container, er
 	if err != nil {
 		return store.Container{}, err
 	}
+	// Before anything is created. A driver that cannot run fails several steps
+	// later, on whatever that step happened to need — a user with Docker
+	// stopped got told a file was missing, which was true, useless, and about
+	// the wrong thing entirely.
+	if err := drv.Available(ctx); err != nil {
+		return store.Container{}, fmt.Errorf(
+			"runtime: %w.\n\nStart it, or set `sandbox.driver: local` in %s to run "+
+				"agents as host processes with no isolation",
+			err, filepath.Join(o.RepoRoot, "aurium.yaml"))
+	}
 	adapter, ok := m.Adapters.Get(o.Adapter)
 	if !ok {
 		return store.Container{}, fmt.Errorf("runtime: unknown agent adapter %q", o.Adapter)

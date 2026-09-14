@@ -39,6 +39,10 @@ func NewLocal() *Local {
 
 func (l *Local) Name() string { return "local" }
 
+// Available always succeeds: the local driver runs host processes, so if this
+// code is running at all, so can it.
+func (l *Local) Available(context.Context) error { return nil }
+
 func (l *Local) Capabilities() Caps {
 	return Caps{
 		Filesystem: FSShared,

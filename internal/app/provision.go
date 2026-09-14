@@ -56,6 +56,13 @@ func (a *App) CreateProject(ctx context.Context, np NewProject) (store.Project, 
 		return store.Project{}, nil, fmt.Errorf("app: a project needs a name")
 	}
 
+	// An unspecified driver becomes one that can actually run here. The
+	// alternative — defaulting to docker on a machine with Docker stopped —
+	// makes a project whose every agent fails.
+	if strings.TrimSpace(np.Driver) == "" {
+		np.Driver, _ = a.DefaultDriver(ctx)
+	}
+
 	root, err := a.projectRoot(np)
 	if err != nil {
 		return store.Project{}, nil, err
@@ -172,6 +179,9 @@ func (a *App) AttachRepository(ctx context.Context, p store.Project, spec RepoSp
 
 	cfgPath := filepath.Join(top, config.Filename)
 	if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
+		if strings.TrimSpace(driver) == "" {
+			driver, _ = a.DefaultDriver(ctx)
+		}
 		if err := writeRepoConfig(cfgPath, filepath.Base(top), base, driver, image, adapter); err != nil {
 			return store.Repository{}, err
 		}

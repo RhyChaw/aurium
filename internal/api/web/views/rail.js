@@ -188,6 +188,7 @@ export async function addAgent(p) {
       repo_id: answer.repo_id ?? repos[0].id,
       adapter: answer.adapter,
     });
+    update({ notice: null });
     await refreshProjectAgents(p.id);
     update({ openProject: p.id, notice: null });
     await openAgent(out.agent.id);

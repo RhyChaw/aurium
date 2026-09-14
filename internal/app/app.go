@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 
+	goruntime "runtime"
+
 	"github.com/RhyChaw/aurium/internal/agent"
 	"github.com/RhyChaw/aurium/internal/config"
 	"github.com/RhyChaw/aurium/internal/contextengine"
@@ -82,8 +84,12 @@ func Open(verbose bool) (*App, error) {
 			"podman": podman,
 			"local":  driver.NewLocal(),
 		},
-		Adapters:     agent.DefaultRegistry(),
-		Images:       &image.Builder{Bin: "docker", Verbose: verbose, MCPBinary: filepath.Join(home, "bin", "aurium-mcp")},
+		Adapters: agent.DefaultRegistry(),
+		Images: &image.Builder{
+			Bin: "docker", Verbose: verbose,
+			MCPBinary:   filepath.Join(home, "bin", "aurium-mcp"),
+			SearchPaths: shimSearchPaths(home),
+		},
 		HomeRoot:     filepath.Join(home, "homes"),
 		SnapshotHome: home,
 		AuriumURL:    "http://host.docker.internal:7770",
@@ -156,6 +162,33 @@ func (m *meter) Meter(ctx context.Context, x runtime.Metered) error {
 		CostUSD: x.CostUSD, HasCost: x.HasCost,
 	})
 	return err
+}
+
+// shimSearchPaths lists where the linux aurium-mcp shim might be.
+//
+// More than one place because a daemon can be run three ways — installed on
+// PATH, from a checkout's bin/, or from `go run` — and only the first of those
+// has anything to do with ~/.aurium. A binary run out of a clone that has built
+// its shims should just work.
+func shimSearchPaths(home string) []string {
+	arch := "amd64"
+	if goruntime.GOARCH == "arm64" {
+		arch = "arm64"
+	}
+
+	paths := []string{
+		filepath.Join(home, "bin", "aurium-mcp-linux-"+arch),
+		filepath.Join(home, "bin", "aurium-mcp"),
+	}
+	// Next to the running binary, which is bin/ in a checkout.
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		paths = append(paths,
+			filepath.Join(dir, "linux-"+arch, "aurium-mcp"),
+			filepath.Join(dir, "..", "bin", "linux-"+arch, "aurium-mcp"),
+		)
+	}
+	return paths
 }
 
 // ConfigForProject loads a project's aurium.yaml.

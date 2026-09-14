@@ -119,6 +119,7 @@ func (s *Server) routes() {
 	// became of an agent's branch. Host-only — an agent reaches GitHub through
 	// the MCP gateway under a grant (§10), which is a different path with
 	// different rules.
+	s.handle("GET /v1/drivers", s.listDrivers, "")
 	s.handle("GET /v1/github", s.githubStatus, "")
 	s.handle("GET /v1/github/repos", s.listGitHubRepos, "")
 	s.handle("POST /v1/projects/{project}/github/clone", s.cloneGitHubRepo, "")

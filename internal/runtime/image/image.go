@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"text/template"
 
@@ -134,9 +135,15 @@ type Builder struct {
 	// Bin is the container CLI ("docker" or "podman").
 	Bin string
 	// MCPBinary is the host path to the linux aurium-mcp binary copied into
-	// the image.
+	// the image. An arch-qualified sibling (…-linux-arm64) is preferred when
+	// one exists, which is what `make build` installs.
 	MCPBinary string
-	Verbose   bool
+	// SearchPaths are further places to look, so a checkout that has run
+	// `make shim` works without installing anything.
+	SearchPaths []string
+	// Arch overrides the container architecture the shim must match.
+	Arch    string
+	Verbose bool
 }
 
 // Ensure returns the image tag for a spec, building it if it is not present.
@@ -184,15 +191,66 @@ func (b *Builder) Ensure(ctx context.Context, s Spec) (string, error) {
 
 func (b *Builder) stageMCPBinary(dir string) error {
 	dst := filepath.Join(dir, "aurium-mcp")
-	if b.MCPBinary == "" {
-		return fmt.Errorf("image: no aurium-mcp binary configured; " +
-			"build it for linux and set Builder.MCPBinary")
-	}
-	src, err := os.ReadFile(b.MCPBinary)
+
+	path, err := b.findMCPBinary()
 	if err != nil {
-		return fmt.Errorf("image: read aurium-mcp from %s: %w", b.MCPBinary, err)
+		return err
+	}
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("image: read aurium-mcp from %s: %w", path, err)
 	}
 	return os.WriteFile(dst, src, 0o755)
+}
+
+// findMCPBinary locates the linux shim every derived image needs.
+//
+// It searches rather than trusting one configured path because that path was
+// populated by nothing: `make shim` cross-compiles into the repository's bin/
+// and the daemon looked in ~/.aurium/bin, so the docker driver could not build
+// an image on a fresh machine and said so in terms of a missing file rather
+// than a missing step.
+//
+// The architecture matters. A linux/arm64 shim in an amd64 image is an exec
+// format error inside the container, which is a far worse place to find out.
+func (b *Builder) findMCPBinary() (string, error) {
+	var candidates []string
+	if b.MCPBinary != "" {
+		candidates = append(candidates,
+			b.MCPBinary,
+			// Arch-qualified siblings of the configured path, which is what
+			// `make build` installs.
+			b.MCPBinary+"-linux-"+b.arch(),
+		)
+	}
+	candidates = append(candidates, b.SearchPaths...)
+
+	for _, c := range candidates {
+		if c == "" {
+			continue
+		}
+		if info, err := os.Stat(c); err == nil && !info.IsDir() {
+			return c, nil
+		}
+	}
+
+	return "", fmt.Errorf(
+		"image: the linux aurium-mcp shim is not on this machine, and every "+
+			"container image needs it.\n\nBuild and install it with `make build` "+
+			"in the Aurium checkout.\n\nLooked in: %s",
+		strings.Join(candidates, ", "))
+}
+
+// arch is the container architecture the shim must match. Docker Desktop on
+// Apple Silicon runs linux/arm64 unless told otherwise.
+func (b *Builder) arch() string {
+	if b.Arch != "" {
+		return b.Arch
+	}
+	if runtime.GOARCH == "arm64" {
+		return "arm64"
+	}
+	return "amd64"
 }
 
 func (b *Builder) run(ctx context.Context, args ...string) error {

@@ -2,9 +2,11 @@ package cli
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -118,7 +120,7 @@ func newProviderDetectCmd() *cobra.Command {
 
 func newProviderConnectCmd() *cobra.Command {
 	var label, authKind string
-	var fromEnv, fromCLI bool
+	var fromEnv, fromCLI, runSetup bool
 
 	cmd := &cobra.Command{
 		Use:   "connect <anthropic|openai>",
@@ -126,6 +128,10 @@ func newProviderConnectCmd() *cobra.Command {
 		Long: "By default the credential is read from standard input, so it never appears\n" +
 			"in your shell history or in the process table:\n\n" +
 			"    aurium provider connect anthropic --label work < key.txt\n\n" +
+			"--setup runs the provider's own login for you (`claude setup-token`) with\n" +
+			"your terminal attached, so you can complete the browser step, and keeps only\n" +
+			"the token it prints. Prefer it to piping: piping the command's output hides\n" +
+			"the instructions it needs to show you.\n\n" +
 			"--from-env takes the value this host already exports. --from-cli-login\n" +
 			"records that the provider's own CLI is logged in here and stores nothing:\n" +
 			"copying a credential out of another program's config would create a second\n" +
@@ -137,7 +143,16 @@ func newProviderConnectCmd() *cobra.Command {
 					Provider: args[0], Label: label, AuthKind: authKind,
 					UseHostEnv: fromEnv, UseCLILogin: fromCLI,
 				}
-				if !fromEnv && !fromCLI {
+				switch {
+				case runSetup:
+					secret, err := runProviderSetup(ctx, args[0])
+					if err != nil {
+						return exitf(CodeUsage, "%v", err)
+					}
+					req.Secret = secret
+				case fromEnv, fromCLI:
+					// Nothing to read; the request says where to look.
+				default:
 					secret, err := readSecret()
 					if err != nil {
 						return wrap(CodeUsage, err)
@@ -173,7 +188,69 @@ func newProviderConnectCmd() *cobra.Command {
 		"use the credential this host already exports")
 	cmd.Flags().BoolVar(&fromCLI, "from-cli-login", false,
 		"use the provider CLI's own login on this machine, storing nothing")
+	cmd.Flags().BoolVar(&runSetup, "setup", false,
+		"run the provider's own login command and keep the token it prints")
 	return cmd
+}
+
+// runProviderSetup runs the provider's login command and returns its token.
+//
+// The whole reason this exists is that piping does not work. `claude
+// setup-token` is a browser flow: it prints a URL and waits for you to
+// authorise. Pipe its stdout into another program and those instructions
+// vanish, the user sees a hung terminal, and nothing is ever connected — which
+// is exactly what happened when this was documented as a pipe.
+//
+// So stdin and stderr stay attached to the terminal and only stdout is
+// captured. The token never reaches a shell history, an argv, or a log.
+func runProviderSetup(ctx context.Context, provider string) (string, error) {
+	spec, ok := providers.SpecFor(provider)
+	if !ok || spec.SubscriptionCommand == "" {
+		return "", fmt.Errorf("providers: %s has no login command to run", provider)
+	}
+	fields := strings.Fields(spec.SubscriptionCommand)
+
+	bin, err := exec.LookPath(fields[0])
+	if err != nil {
+		return "", fmt.Errorf("providers: %s is not on your PATH; install it, then run `%s`",
+			fields[0], spec.SubscriptionCommand)
+	}
+
+	fmt.Fprintf(os.Stderr, "Running `%s` — complete the browser step when it appears.\n\n",
+		spec.SubscriptionCommand)
+
+	var out bytes.Buffer
+	proc := exec.CommandContext(ctx, bin, fields[1:]...)
+	proc.Stdin = os.Stdin
+	proc.Stderr = os.Stderr
+	proc.Stdout = &out
+	if err := proc.Run(); err != nil {
+		return "", fmt.Errorf("providers: `%s` did not complete: %w", spec.SubscriptionCommand, err)
+	}
+
+	token := lastNonEmptyLine(out.String())
+	if token == "" {
+		return "", fmt.Errorf(
+			"providers: `%s` printed no token. Run it on its own and paste the result with:\n"+
+				"    aurium provider connect %s --kind subscription",
+			spec.SubscriptionCommand, provider)
+	}
+	return token, nil
+}
+
+// lastNonEmptyLine takes the token out of whatever else was printed.
+//
+// The token is the last thing these commands emit; anything before it is
+// progress the command chose to put on stdout rather than stderr, and treating
+// the whole buffer as the credential would store a paragraph.
+func lastNonEmptyLine(s string) string {
+	lines := strings.Split(s, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if t := strings.TrimSpace(lines[i]); t != "" {
+			return t
+		}
+	}
+	return ""
 }
 
 func newProviderForgetCmd() *cobra.Command {

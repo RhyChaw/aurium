@@ -30,18 +30,25 @@ run-desktop: build
 	./bin/aurium up --detach --no-open
 	cd desktop && cargo tauri dev
 
-build:
+build: shim
 	$(GO) build -o bin/aurium ./cmd/aurium
 	$(GO) build -o bin/auriumd ./cmd/auriumd
 	$(GO) build -o bin/aurium-mcp ./cmd/aurium-mcp
 
-# Cross-compiles the in-container shim. The image build copies these in, so
-# without them `aurium container create` on the docker driver cannot produce
-# an image at all.
+# Cross-compiles the in-container shim and installs it where the daemon looks.
+#
+# `build` depends on this. It used to be a separate target nobody ran, so the
+# docker driver could not build an image on a fresh machine — and failed with
+# "read aurium-mcp from ~/.aurium/bin/aurium-mcp: no such file", which named a
+# path nothing had ever written to rather than the step that was missing.
 .PHONY: shim
 shim:
 	GOOS=linux GOARCH=amd64 $(GO) build -o bin/linux-amd64/aurium-mcp ./cmd/aurium-mcp
 	GOOS=linux GOARCH=arm64 $(GO) build -o bin/linux-arm64/aurium-mcp ./cmd/aurium-mcp
+	@mkdir -p $(HOME)/.aurium/bin
+	@cp bin/linux-amd64/aurium-mcp $(HOME)/.aurium/bin/aurium-mcp-linux-amd64
+	@cp bin/linux-arm64/aurium-mcp $(HOME)/.aurium/bin/aurium-mcp-linux-arm64
+	@echo "installed aurium-mcp shims to $(HOME)/.aurium/bin"
 
 test:
 	$(GO) test $(PKGS)

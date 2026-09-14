@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Docker drives Docker Engine, Docker Desktop, OrbStack and (with the same
@@ -38,6 +39,32 @@ func (d *Docker) Name() string {
 		return "podman"
 	}
 	return "docker"
+}
+
+// Available shells out to `docker info`, which is the only honest test: the
+// binary being on PATH says nothing about whether the daemon is up, and on a
+// laptop the daemon being down is the common case rather than the exotic one.
+func (d *Docker) Available(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, d.bin, "info", "--format", "{{.ServerVersion}}")
+	var out, errBuf bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errBuf
+
+	if err := cmd.Run(); err != nil {
+		detail := strings.TrimSpace(errBuf.String())
+		if detail == "" {
+			detail = err.Error()
+		}
+		// One line, not Docker's four: the useful part is that it is not
+		// running, and the rest is noise in a dialog.
+		if i := strings.IndexByte(detail, '\n'); i > 0 {
+			detail = detail[:i]
+		}
+		return fmt.Errorf("%s is not running: %s", d.Name(), detail)
+	}
+	return nil
 }
 
 func (d *Docker) Capabilities() Caps {

@@ -97,10 +97,11 @@ function openCreate() {
     el("option", { value: "claude" }, "claude"),
     el("option", { value: "codex" }, "codex"),
     el("option", { value: "shell" }, "shell"));
-  const driver = el("select.field",
-    el("option", { value: "docker" }, "docker"),
-    el("option", { value: "local" }, "local — no isolation"),
-    el("option", { value: "podman" }, "podman"));
+  // Built from what actually works here, not a fixed list. Offering "docker"
+  // on a machine with Docker stopped is offering a choice that fails later.
+  const driver = el("select.field");
+  const driverNote = el("p.hint");
+  loadDrivers(driver, driverNote);
 
   const status = el("p.dialog-status");
   const submit = el("button.act.primary", { type: "submit" }, "Create project");
@@ -182,7 +183,10 @@ function openCreate() {
     el("details.advanced",
       el("summary", "Advanced"),
       field("Project root", root),
-      field("Default driver", driver),
+      el("label.field-row",
+        el("span.field-label", "Sandbox"),
+        driver,
+        driverNote),
       field("Default agent", agent)),
     status,
     el("div.dialog-actions",
@@ -197,6 +201,52 @@ function openCreate() {
   document.body.append(dialog);
   dialog.showModal();
   name.focus();
+}
+
+/**
+ * loadDrivers fills the sandbox picker from what this machine can run.
+ *
+ * An unavailable driver stays in the list, disabled, with its reason — hiding
+ * it would leave a user wondering where Docker went, and the reason is usually
+ * "start Docker Desktop", which is a thing they can do.
+ */
+async function loadDrivers(select, note) {
+  select.replaceChildren(el("option", { value: "" }, "checking…"));
+  let drivers;
+  try {
+    ({ drivers } = await Aurium.drivers());
+  } catch {
+    select.replaceChildren(el("option", { value: "local" }, "local — no isolation"));
+    return;
+  }
+
+  select.replaceChildren(...drivers.map((d) => el("option", {
+    value: d.name,
+    disabled: !d.available,
+    selected: d.recommended,
+  }, d.available
+      ? (d.isolated ? d.name : `${d.name} — no isolation`)
+      : `${d.name} — unavailable`)));
+
+  const explain = () => {
+    const chosen = drivers.find((d) => d.name === select.value);
+    if (!chosen) return;
+    if (!chosen.isolated) {
+      note.className = "hint";
+      note.textContent =
+        "Agents run as processes on this machine with no isolation. Fine for " +
+        "trying it out and on a repository you trust; it is not a sandbox.";
+      const unavailable = drivers.filter((d) => !d.available && d.isolated);
+      if (unavailable.length) {
+        note.textContent += ` (${unavailable[0].reason})`;
+      }
+    } else {
+      note.className = "hint";
+      note.textContent = "Each agent gets its own container.";
+    }
+  };
+  select.addEventListener("change", explain);
+  explain();
 }
 
 /** mountPending draws the not-yet-cloned repositories. */

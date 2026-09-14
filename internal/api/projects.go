@@ -43,6 +43,19 @@ func (s *Server) getProject(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// listDrivers tells the dashboard which sandbox drivers work here.
+//
+// The New Project dialog needs it to say what an agent will actually run in.
+// Offering "docker" on a machine where Docker is stopped is offering a choice
+// that fails later, for reasons the dialog is in the best position to explain
+// and the worst position to discover.
+func (s *Server) listDrivers(w http.ResponseWriter, r *http.Request) {
+	if !s.hostOnly(w, r) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"drivers": s.App.Drivers(r.Context())})
+}
+
 // createProject is the dashboard's door in. D21: the CLI's `aurium init` and
 // this route call the same provisioning code, so neither can be the one that
 // really works.

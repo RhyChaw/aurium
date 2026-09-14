@@ -98,9 +98,21 @@ export GITHUB_TOKEN=...
 ./bin/aurium events                     # the audit trail behind all of it
 ```
 
-No Docker? `aurium init --driver local --agent shell` runs everything on the
-host with no isolation — useful for trying the model out and for the test
-suite.
+No Docker? Nothing to do: project creation picks a driver that actually works,
+and says so. `local` runs everything on the host with no isolation — useful for
+trying the model out and for the test suite, and not a sandbox. `aurium init
+--driver local` forces it explicitly.
+
+Connecting a Claude subscription:
+
+```sh
+./bin/aurium provider connect anthropic --kind subscription --setup
+```
+
+That runs `claude setup-token` with your terminal attached so you can complete
+the browser step, and keeps only the token it prints. Do not pipe
+`claude setup-token` into anything — it is a browser flow, and piping its
+output hides the instructions it needs to show you.
 
 ## The ideas that carry their weight
 
