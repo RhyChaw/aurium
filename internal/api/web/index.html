@@ -16,64 +16,22 @@
   </div>
 </header>
 
-<nav id="tabs">
-  <button class="tab is-active" data-panel="approvals">
-    Approvals <span id="approval-count" class="count" hidden>0</span>
-  </button>
-  <button class="tab" data-panel="tree">Containers</button>
-  <button class="tab" data-panel="tasks">Tasks</button>
-  <button class="tab" data-panel="events">Events</button>
-</nav>
+<nav id="tabs"></nav>
 
-<main>
-  <section id="panel-approvals" class="panel is-active">
-    <p class="lede">
-      An agent asked for a capability it does not hold. Approving executes the
-      held call inside the daemon and hands the agent the result.
-    </p>
-    <ul id="approvals" class="cards"></ul>
-    <p id="approvals-empty" class="empty" hidden>Nothing waiting. No agent is blocked.</p>
-  </section>
+<!-- A live region: the result of an action must reach a screen reader too. -->
+<p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
 
-  <section id="panel-tree" class="panel">
-    <div class="split">
-      <div class="split-left">
-        <div id="tree" class="tree"></div>
-        <p id="tree-empty" class="empty" hidden>
-          No containers yet. Create one with <code>aurium container create &lt;branch&gt;</code>.
-        </p>
-      </div>
-      <aside id="detail" class="detail">
-        <p class="empty">Select a container to see its agents and snapshots.</p>
-      </aside>
-    </div>
-  </section>
-
-  <section id="panel-tasks" class="panel">
-    <table class="grid">
-      <thead><tr><th>Task</th><th>Status</th><th>Updated</th></tr></thead>
-      <tbody id="tasks"></tbody>
-    </table>
-    <p id="tasks-empty" class="empty" hidden>No tasks yet.</p>
-  </section>
-
-  <section id="panel-events" class="panel">
-    <div class="toolbar">
-      <input id="event-filter" type="search" placeholder="Filter by type or container…" autocomplete="off">
-      <label class="check"><input type="checkbox" id="autoscroll" checked> Follow</label>
-    </div>
-    <ol id="events" class="events" reversed></ol>
-  </section>
-</main>
+<main id="panel" data-panel=""></main>
 
 <p class="hint-bar">
-  <span><kbd>1</kbd>–<kbd>4</kbd> panels</span>
+  <span><kbd>1</kbd>–<kbd>6</kbd> panels</span>
   <span><kbd>a</kbd> approve top</span>
   <span><kbd>x</kbd> reject top</span>
-  <span><kbd>j</kbd>/<kbd>k</kbd> containers</span>
+  <span><kbd>j</kbd>/<kbd>k</kbd> agents</span>
   <span><kbd>r</kbd> refresh</span>
 </p>
 
-<script src="/app.js"></script>
+<!-- Modules, loaded natively. No bundler, so `make build` needs only Go. -->
+<script type="module" src="/app.js"></script>
 </body>
 </html>
