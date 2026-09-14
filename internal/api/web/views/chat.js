@@ -19,8 +19,28 @@ import { prompt } from "../lib/dialog.js";
 // coloured rather than read.
 const URGENT = new Set(["BLOCKED", "APPROVAL_REQUIRED", "CONFLICT", "WARNING"]);
 
+// The pane is built once and its parts re-rendered in place.
+//
+// Rebuilding it wholesale on every render destroyed everything the user was in
+// the middle of: the composer is recreated empty, so a draft vanishes the
+// moment any event arrives — and on a busy fleet that is several times a
+// second, which makes the box unusable. It also dropped keyboard focus and the
+// caret, and yanked the transcript back to the bottom while you were reading
+// history.
+//
+// Only the transcript is cheap to redraw. The composer holds live state and is
+// therefore kept alive.
+let panes = null;
+let composerAgent = null;
+
+// drafts survive switching agents and coming back, because an unsent sentence
+// belongs to the conversation you wrote it in.
+const drafts = new Map();
+
 export function renderChat(host) {
   if (!state.openAgent) {
+    panes = null;
+    composerAgent = null;
     mount(host, el("div.chat-empty",
       el("p", "Pick an agent on the left to see what it is doing.")));
     return;
@@ -36,21 +56,60 @@ export function renderChat(host) {
   const thinking = detail?.thinking === true;
   const canChat = detail?.can_chat !== false;
 
-  mount(host,
-    header(detail, a),
-    el("div.chat-scroll", { id: "chat-scroll" },
-      messages.length
-        ? messages.map(bubble)
-        : el("p.empty", canChat
-            ? "Nothing said yet. Say something below and it will answer here."
-            : "Nothing said yet."),
-      thinking ? thinkingBubble() : null),
-    canChat ? composer(a) : noChat(detail));
+  if (!panes || !host.contains(panes.root)) {
+    panes = buildPanes();
+    composerAgent = null;
+    mount(host, panes.root);
+  }
 
-  // Pin to the newest message. A transcript that opens at the top means
-  // scrolling past a week of history to find out what is happening now.
-  const scroll = host.querySelector("#chat-scroll");
-  if (scroll) scroll.scrollTop = scroll.scrollHeight;
+  mount(panes.head, header(detail, a));
+
+  // Follow the newest message only when already at the bottom. Forcing it
+  // unconditionally drags the reader away from the history they scrolled up to
+  // read, every time anything happens.
+  const following = atBottom(panes.scroll);
+  mount(panes.scroll,
+    messages.length
+      ? messages.map(bubble)
+      : el("p.empty", canChat
+          ? "Nothing said yet. Say something below and it will answer here."
+          : "Nothing said yet."),
+    thinking ? thinkingBubble() : null);
+  if (following) panes.scroll.scrollTop = panes.scroll.scrollHeight;
+
+  // The composer is rebuilt only when the agent changes, so typing survives
+  // every event in between.
+  if (composerAgent !== a.id) {
+    composerAgent = a.id;
+    mount(panes.foot, canChat ? composer(a) : noChat(detail));
+  }
+  syncComposer(panes.foot);
+}
+
+function buildPanes() {
+  const head = el("div.chat-head-host");
+  const scroll = el("div.chat-scroll");
+  const foot = el("div.chat-foot");
+  return { root: el("div.chat-inner", head, scroll, foot), head, scroll, foot };
+}
+
+/** atBottom is true when the reader is at (or within a line of) the newest. */
+function atBottom(scroll) {
+  if (!scroll || scroll.scrollHeight <= scroll.clientHeight) return true;
+  return scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 40;
+}
+
+/**
+ * syncComposer updates the parts that depend on state without replacing the
+ * nodes — which is the whole point, since one of them holds what you typed.
+ */
+function syncComposer(foot) {
+  const input = foot.querySelector(".composer-input");
+  const button = foot.querySelector(".composer .act");
+  if (!input || !button) return;
+  input.disabled = state.sending;
+  button.disabled = state.sending;
+  button.textContent = state.sending ? "sending…" : "Send";
 }
 
 /**
@@ -140,8 +199,12 @@ function composer(a) {
   const input = el("textarea.composer-input", {
     placeholder: "Say something to this agent…   (⌘/Ctrl + Enter to send)",
     rows: 2,
+    value: drafts.get(a.id) ?? "",
     disabled: state.sending,
   });
+  // Remembered as you type, so switching agents and coming back does not
+  // silently eat a paragraph.
+  input.addEventListener("input", () => drafts.set(a.id, input.value));
 
   const send = async () => {
     const content = input.value.trim();
@@ -150,6 +213,7 @@ function composer(a) {
     try {
       const out = await Aurium.sendToAgent(a.id, { content });
       input.value = "";
+      drafts.delete(a.id);
       // Three outcomes, and they are not the same thing. `typed` went into a
       // live session. `thinking` started a headless turn and a reply is
       // coming. Neither means it is sitting in an inbox until the agent next

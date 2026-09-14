@@ -55,6 +55,11 @@ type Spec struct {
 	// KeyPrefix is the shape a pasted API key has, used to catch the common
 	// paste mistake of swapping the two providers' keys.
 	KeyPrefix string
+	// TokenPrefix is the shape a subscription token has. Checking it matters
+	// more than it looks: a wrong paste is otherwise accepted in silence and
+	// surfaces much later as "API Error: 400 status code (no body)" from
+	// inside an agent turn, which points at nothing.
+	TokenPrefix string
 }
 
 // Specs is the registry, keyed by provider.
@@ -68,6 +73,7 @@ var Specs = map[string]Spec{
 		SubscriptionCommand: "claude setup-token",
 		SubscriptionFile:    ".claude/.credentials.json",
 		KeyPrefix:           "sk-ant-",
+		TokenPrefix:         "sk-ant-oat01-",
 	},
 	store.ProviderOpenAI: {
 		Provider:            store.ProviderOpenAI,
@@ -191,6 +197,19 @@ func (m *Manager) Connect(ctx context.Context, req ConnectRequest) (store.Provid
 		source = store.SourceCLILogin
 	default:
 		return store.ProviderAccount{}, ErrNoCredential
+	}
+
+	// A subscription token that is not one is the second most common paste
+	// error — the browser flow prints a good deal around the token — and it
+	// fails later and far less clearly than this.
+	if source != store.SourceCLILogin && req.AuthKind == store.AuthSubscription &&
+		spec.TokenPrefix != "" && !strings.HasPrefix(secret, spec.TokenPrefix) {
+		return store.ProviderAccount{}, fmt.Errorf(
+			"providers: that does not look like a subscription token for %s — they "+
+				"start with %s and this does not (%d characters).\n\nRun `aurium provider "+
+				"connect %s --kind subscription --setup`, which runs `%s` for you and "+
+				"keeps only the token it prints",
+			spec.Display, spec.TokenPrefix, len(secret), spec.Provider, spec.SubscriptionCommand)
 	}
 
 	// A key for the wrong provider is the single most common paste error, and

@@ -68,6 +68,35 @@ func (l *Local) Create(ctx context.Context, s Spec) (string, error) {
 	return id, nil
 }
 
+// Adopt re-registers a container this process did not create.
+//
+// The local driver's registry is in memory, because a "container" here is a
+// working directory and an environment rather than anything the OS is holding
+// open. That is fine until the daemon restarts, at which point every container
+// made before it becomes "runtime object not found" — the rows are all still
+// in the database, and the driver has simply forgotten what they were.
+//
+// So the daemon hands them back at startup. It is the driver that is
+// stateless, not the system.
+func (l *Local) Adopt(id string, s Spec) {
+	if id == "" || s.Workdir == "" {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if _, exists := l.containers[id]; exists {
+		return
+	}
+	l.containers[id] = &localContainer{spec: s, running: true}
+}
+
+// Adopter is implemented by drivers that can be handed back a container they
+// did not create. Only the local driver needs it: docker keeps its own state,
+// and asking it to adopt would be asking it to forget what it already knows.
+type Adopter interface {
+	Adopt(id string, s Spec)
+}
+
 func (l *Local) Start(ctx context.Context, id string) error {
 	return l.withContainer(id, func(c *localContainer) error {
 		c.running = true

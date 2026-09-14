@@ -148,7 +148,7 @@ func TestConnectFromHostEnv(t *testing.T) {
 	m, _, _ := newManager(t)
 	ctx := context.Background()
 
-	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "oauth-token-value")
+	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-oauth-token-value")
 	acct, err := m.Connect(ctx, ConnectRequest{
 		Provider: store.ProviderAnthropic, AuthKind: store.AuthSubscription, UseHostEnv: true,
 	})
@@ -166,7 +166,7 @@ func TestConnectFromHostEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if value != "oauth-token-value" {
+	if value != "sk-ant-oat01-oauth-token-value" {
 		t.Fatalf("resolved %q", value)
 	}
 }
@@ -306,5 +306,35 @@ func TestResolveMarksABrokenAccount(t *testing.T) {
 	}
 	if got.Status != store.AccountError || got.LastError == "" {
 		t.Fatalf("the account must record why it broke: %+v", got)
+	}
+}
+
+// A subscription token that is not one was accepted in silence and surfaced,
+// much later, as "API Error: 400 status code (no body)" from inside an agent
+// turn — which points at nothing. The browser flow prints a good deal around
+// the token, so a wrong paste is easy and worth catching where it happens.
+func TestSubscriptionTokenShapeIsChecked(t *testing.T) {
+	m, _, _ := newManager(t)
+	ctx := context.Background()
+
+	_, err := m.Connect(ctx, ConnectRequest{
+		Provider: store.ProviderAnthropic, AuthKind: store.AuthSubscription,
+		Secret: "1f9a0c3e5b7d2468ace013579bdf2468ace013579bdf2468ace013579bdf24",
+	})
+	if err == nil {
+		t.Fatal("a token with the wrong shape must be refused at connect time")
+	}
+	// The message has to name the command that produces a right one.
+	if !strings.Contains(err.Error(), "--setup") ||
+		!strings.Contains(err.Error(), "sk-ant-oat01-") {
+		t.Fatalf("the refusal must say what a real token looks like and how to get one: %v", err)
+	}
+
+	// And a well-shaped one still goes through.
+	if _, err := m.Connect(ctx, ConnectRequest{
+		Provider: store.ProviderAnthropic, AuthKind: store.AuthSubscription,
+		Label: "real", Secret: "sk-ant-oat01-LOOKS-LIKE-THE-REAL-THING",
+	}); err != nil {
+		t.Fatalf("a correctly shaped token must be accepted: %v", err)
 	}
 }

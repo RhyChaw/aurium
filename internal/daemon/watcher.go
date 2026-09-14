@@ -8,6 +8,7 @@ import (
 	"github.com/RhyChaw/aurium/internal/app"
 	"github.com/RhyChaw/aurium/internal/events"
 	"github.com/RhyChaw/aurium/internal/gitx"
+	"github.com/RhyChaw/aurium/internal/runtime/driver"
 	"github.com/RhyChaw/aurium/internal/stack"
 	"github.com/RhyChaw/aurium/internal/store"
 )
@@ -54,6 +55,12 @@ func (w *Watcher) Run(ctx context.Context) {
 	reconcile := time.NewTicker(w.Intervals.Reconcile)
 	defer refs.Stop()
 	defer reconcile.Stop()
+
+	// Once, immediately. Reconcile is what hands forgotten containers back to
+	// the local driver, and waiting for the first tick would leave every
+	// container made before a restart unusable for thirty seconds — with no
+	// sign of why, since the row and the worktree are both still there.
+	w.Reconcile(ctx)
 
 	for {
 		select {
@@ -144,6 +151,16 @@ func (w *Watcher) Reconcile(ctx context.Context) {
 			if err != nil {
 				continue
 			}
+			// Hand back containers the driver cannot remember. The local
+			// driver's registry lives in memory, so every container made
+			// before a daemon restart became "runtime object not found" —
+			// with the row still in the database and the worktree still on
+			// disk. Adoption happens before Inspect, or reconcile would mark
+			// them stopped and the user would watch a fleet die on restart.
+			if adopter, ok := drv.(driver.Adopter); ok {
+				adopter.Adopt(c.RuntimeID, driver.Spec{Workdir: c.Worktree})
+			}
+
 			st, err := drv.Inspect(ctx, c.RuntimeID)
 			if err != nil {
 				// The container is gone from the runtime. Say so rather than

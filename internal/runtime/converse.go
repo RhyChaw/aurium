@@ -117,10 +117,34 @@ func (m *Manager) Converse(ctx context.Context, agentID, prompt string) error {
 		return err
 	}
 
+	// Resolve the credential now, not when the container was made.
+	//
+	// It used to come only from the container's environment, fixed at create
+	// time — so an agent made before you connected an account stayed logged
+	// out forever, and connecting one appeared to do nothing. "Connect your
+	// account, then throw away every agent you already had" is not an answer.
+	runOpts := execOptsFor(c)
+	accountID := a.ProviderAccountID
+	if accountID == "" {
+		// Adopt the default account, so an agent that predates it is billed
+		// to something and shows an account in the pane.
+		if id := m.accountIDFor(ctx, a.Adapter, ""); id != "" {
+			accountID = id
+			_ = m.Store.SetAgentProviderAccount(ctx, a.ID, id)
+			a.ProviderAccountID = id
+		}
+	}
+	if name, value, err := m.credentialFor(ctx, a.Adapter, accountID); err == nil && name != "" {
+		// Last wins in both the local driver and docker exec, so this
+		// overrides whatever the container was created with — which is the
+		// point: the account you connected most recently is the one you mean.
+		runOpts.Env = append(runOpts.Env, name+"="+value)
+	}
+
 	runCtx, cancel := context.WithTimeout(ctx, ConversationTimeout)
 	defer cancel()
 
-	res, err := drv.Exec(runCtx, c.RuntimeID, cmd, execOptsFor(c))
+	res, err := drv.Exec(runCtx, c.RuntimeID, cmd, runOpts)
 	if err != nil {
 		// The agent is not broken as an agent — the call failed — but the
 		// human needs to see it, so it goes in the transcript rather than only

@@ -154,9 +154,24 @@ func TestWatcherReportsEachParentMoveOnce(t *testing.T) {
 	}
 }
 
+// vanishedDriver reports every container gone, as `docker rm` behind the
+// daemon's back would.
+//
+// It embeds the Driver interface rather than *driver.Local so that Adopt is
+// not promoted: a driver that can be handed its containers back is precisely
+// one that never reports them missing, and using the local driver here would
+// test the adoption path instead of this one.
+type vanishedDriver struct{ driver.Driver }
+
+func (vanishedDriver) Inspect(context.Context, string) (driver.State, error) {
+	return driver.State{}, driver.ErrNotFound
+}
+
 func TestReconcileMarksVanishedContainersStopped(t *testing.T) {
 	w, a, child, _ := watcherFixture(t)
 	ctx := context.Background()
+
+	a.Manager.Drivers["local"] = vanishedDriver{driver.NewLocal()}
 
 	// Claim a runtime id the driver has never heard of, as if `docker rm` had
 	// been run behind the daemon's back.
@@ -175,5 +190,36 @@ func TestReconcileMarksVanishedContainersStopped(t *testing.T) {
 	}
 	if got.LastError == "" {
 		t.Error("reconcile should record why the status changed")
+	}
+}
+
+// The local driver's registry is in memory, so a daemon restart left every
+// container it had made reporting "runtime object not found" — with the row
+// still in the database and the worktree still on disk. Reconcile hands them
+// back, and does so at startup rather than on the first tick, because thirty
+// seconds of a dead fleet with no explanation is its own bug.
+func TestReconcileAdoptsLocalContainersAfterARestart(t *testing.T) {
+	w, _, c, _ := watcherFixture(t)
+	ctx := context.Background()
+
+	// The container needs a runtime id, as one made by a previous daemon has.
+	if err := w.App.Store.SetContainerRuntime(ctx, c.ID, "local_rt_gone", "", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	c.RuntimeID = "local_rt_gone"
+
+	// A fresh driver is what a restarted daemon has: it has never heard of
+	// this container.
+	fresh := driver.NewLocal()
+	w.App.Manager.Drivers["local"] = fresh
+
+	if _, err := fresh.Exec(ctx, c.RuntimeID, []string{"true"}, driver.ExecOpts{}); err == nil {
+		t.Fatal("a fresh driver should not know this container yet")
+	}
+
+	w.Reconcile(ctx)
+
+	if _, err := fresh.Exec(ctx, c.RuntimeID, []string{"true"}, driver.ExecOpts{}); err != nil {
+		t.Fatalf("after reconcile the container must be usable again: %v", err)
 	}
 }
