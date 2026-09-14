@@ -321,6 +321,55 @@ func (b *Bus) Inbox(ctx context.Context, to Addr, limit int) ([]Message, error) 
 	return out, nil
 }
 
+// History returns an agent's conversation — everything it sent and everything
+// sent to it — oldest first, without delivering anything.
+//
+// Inbox cannot be reused for this. Reading a transcript in the dashboard must
+// not consume the agent's inbox: at-least-once delivery means a message is
+// "delivered" when the recipient was handed it, and a human reading over its
+// shoulder is not the recipient.
+func (b *Bus) History(ctx context.Context, agentID string, limit int) ([]Message, error) {
+	if agentID == "" {
+		return nil, fmt.Errorf("ipc: history needs an agent")
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 200
+	}
+
+	// Ordered newest-first for the LIMIT, then reversed, so a long-running
+	// agent's transcript shows its most recent turns rather than its first.
+	rows, err := b.Store.DB().QueryContext(ctx,
+		`SELECT id, project_id, COALESCE(from_agent_id,''), COALESCE(from_container_id,''),
+		        COALESCE(to_agent_id,''), COALESCE(to_container_id,''), to_human,
+		        type, priority, content, COALESCE(refs_json,'{}'),
+		        COALESCE(in_reply_to,''), status, created_at,
+		        COALESCE(delivered_at,''), COALESCE(acked_at,'')
+		 FROM messages
+		 WHERE from_agent_id = ? OR to_agent_id = ?
+		 ORDER BY created_at DESC, id DESC
+		 LIMIT ?`, agentID, agentID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Message
+	for rows.Next() {
+		m, err := scanMessage(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out, nil
+}
+
 // Ack marks messages handled. Until this is called the message is still
 // outstanding and will be shown again.
 func (b *Bus) Ack(ctx context.Context, msgIDs []string) (int, error) {

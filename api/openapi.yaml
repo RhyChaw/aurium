@@ -69,6 +69,71 @@ components:
         label: { type: string }
         trigger: { type: string }
         head_sha: { type: string }
+    Repository:
+      type: object
+      description: A git repository belonging to a project. A project may hold several (D22).
+      properties:
+        id: { type: string }
+        project_id: { type: string }
+        path: { type: string }
+        base_branch: { type: string }
+        remote: { type: string }
+    ProviderAccount:
+      type: object
+      description: |
+        A connected model-provider login (D24). secret_ref names where the
+        credential lives; it is never the credential, and no route turns one
+        back into a secret.
+      properties:
+        id: { type: string }
+        provider: { type: string, enum: [anthropic, openai] }
+        label: { type: string }
+        auth_kind:
+          type: string
+          enum: [api_key, subscription]
+          description: A subscription seat has no per-token price, so its usage is metered and not costed.
+        env_var: { type: string }
+        secret_ref: { type: string }
+        source:
+          type: string
+          enum: [pasted, host_env, cli_login]
+          description: |
+            How the credential reached Aurium. cli_login means the provider's own
+            CLI holds it and Aurium holds nothing — there is no second copy to revoke.
+        status: { type: string, enum: [connected, error] }
+        last_error: { type: string }
+    AgentTile:
+      type: object
+      description: One thin box in the dashboard rail.
+      properties:
+        agent: { type: object }
+        container: { type: object }
+        state:
+          type: string
+          enum: [starting, working, done, attention]
+          description: |
+            The colour band. Computed by the daemon, not the browser, so every
+            client agrees on what red means.
+        waiting:
+          type: boolean
+          description: An approval addressed to this agent is pending; it forces `attention`.
+        unread: { type: integer }
+        provider: { type: string }
+    UsageGroup:
+      type: object
+      properties:
+        key: { type: string }
+        label: { type: string }
+        calls: { type: integer }
+        input_tokens: { type: integer }
+        output_tokens: { type: integer }
+        cost_usd: { type: number }
+        unpriced_tokens:
+          type: integer
+          description: |
+            Tokens the cost figure does NOT cover — an unpriced model, or a
+            subscription seat. Reported separately rather than folded into
+            $0.00, which would make the view quietly under-report spend.
     Approval:
       type: object
       properties:
@@ -111,6 +176,47 @@ paths:
         "200": { description: text/event-stream }
 
   /v1/projects:
+    post:
+      summary: Create a project
+      description: |
+        D22: a project is a set of repositories described by aurium.project.yaml.
+        This route and `aurium init` call the same provisioning code, so neither
+        can be the one that really works (D21).
+
+        A member repository that cannot be attached fails the whole call. Half a
+        project on disk is worse than a clean failure, because nothing cleans it
+        up.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                root:
+                  type: string
+                  description: |
+                    Where the descriptor is written. Defaults to
+                    ~/.aurium/projects/<slug>, which keeps it out of any one
+                    member repository — writing it into one would make that repo
+                    quietly special.
+                repos:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      path: { type: string }
+                      base_branch: { type: string }
+                context: { type: array, items: { type: string } }
+                driver: { type: string }
+                image: { type: string }
+                agent: { type: string }
+      responses:
+        "201": { description: Created }
+        "400": { description: A member is not a git repository, or the root is already a project }
+        "403": { description: An agent may not create projects }
     get:
       summary: List projects
       responses:
@@ -122,6 +228,79 @@ paths:
                 type: object
                 properties:
                   projects: { type: array, items: { $ref: "#/components/schemas/Project" } }
+
+  /v1/projects/{project}:
+    get:
+      summary: One project, with its repositories
+      parameters: [{ name: project, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project: { $ref: "#/components/schemas/Project" }
+                  repositories: { type: array, items: { $ref: "#/components/schemas/Repository" } }
+                  containers: { type: integer }
+                  agents: { type: integer }
+                  standalone:
+                    type: boolean
+                    description: True for a single repository registered by `aurium init` with no descriptor.
+        "404": { description: Not found }
+
+  /v1/projects/{project}/repos:
+    post:
+      summary: Attach a repository to a project
+      description: |
+        Idempotent within a project: re-attaching a member returns the existing
+        row, because "add these three repos" where one is already a member is an
+        ordinary request. A repository already in a *different* project is
+        refused — a repository belongs to one project at a time.
+
+        Host-only. An agent able to attach repositories could register anything
+        on the host.
+      parameters: [{ name: project, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path:
+                  type: string
+                  description: Any directory in the repository; resolved to its git toplevel.
+                base_branch: { type: string }
+                driver: { type: string }
+                image: { type: string }
+                agent: { type: string }
+      responses:
+        "201":
+          description: Attached
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Repository" }
+        "400": { description: Not a git repository, or already in another project }
+        "403": { description: An agent may not attach repositories }
+
+  /v1/projects/{project}/agents:
+    get:
+      summary: Every agent in a project, as rail tiles
+      description: |
+        One query across every container, because the rail redraws on every
+        event and a call per container would not survive that.
+      parameters: [{ name: project, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents: { type: array, items: { $ref: "#/components/schemas/AgentTile" } }
 
   /v1/projects/{project}/containers:
     get:
@@ -162,6 +341,54 @@ paths:
       parameters: [{ name: project, in: path, required: true, schema: { type: string } }]
       responses:
         "200": { description: OK }
+
+  /v1/agents/{agent}:
+    get:
+      summary: One agent, its container and the account it is billed against
+      parameters: [{ name: agent, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK }
+        "403": { description: This token is scoped to a different container }
+        "404": { description: Not found }
+
+  /v1/agents/{agent}/messages:
+    get:
+      summary: An agent's transcript
+      description: |
+        Read-only, and deliberately not the inbox. At-least-once delivery marks
+        a message delivered when the recipient is handed it, and a human reading
+        over an agent's shoulder is not the recipient.
+      parameters:
+        - { name: agent, in: path, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+        "403": { description: This token is scoped to a different container }
+
+  /v1/agents/{agent}/message:
+    post:
+      summary: Say something to an agent
+      description: |
+        Two things happen. The message is recorded as IPC, so it is in the
+        agent's inbox whether or not it is looking; and for an interactive agent
+        on a driver with tmux it is typed into the session, so an agent sitting
+        at a prompt sees it now. The response says which, so the dashboard can
+        report "queued" rather than implying it has been seen.
+      parameters: [{ name: agent, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string }
+                type: { type: string, default: REQUEST }
+                priority: { type: string, enum: [normal, high] }
+      responses:
+        "201": { description: Sent }
+        "400": { description: Empty content or an unknown message type }
+        "403": { description: This token is scoped to a different container }
 
   /v1/containers/{container}:
     get:
@@ -259,6 +486,121 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Approval" }
+
+  /v1/providers:
+    get:
+      summary: Connected provider accounts
+      description: |
+        Returns keyring references and never credentials. There is deliberately
+        no route that resolves a reference back to a secret (D17, D24).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accounts: { type: array, items: { $ref: "#/components/schemas/ProviderAccount" } }
+        "403": { description: Host-only }
+    post:
+      summary: Connect a provider account
+      description: |
+        Three ways in, and exactly one of them stores nothing. `secret` pastes a
+        key or a token; `use_host_env` takes the value this host already exports;
+        `use_cli_login` records that the provider's own CLI is logged in here and
+        holds no copy at all.
+
+        D25: there is no OAuth client Aurium could legitimately drive for a Claude
+        or ChatGPT subscription, so a seat is reached through the provider CLI's
+        own login (`claude setup-token`, `codex login`) and the token it prints.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, auth_kind]
+              properties:
+                provider: { type: string, enum: [anthropic, openai] }
+                auth_kind: { type: string, enum: [api_key, subscription] }
+                label: { type: string }
+                secret:
+                  type: string
+                  description: Never echoed back, never logged, never stored outside the keyring.
+                use_host_env: { type: boolean }
+                use_cli_login: { type: boolean }
+      responses:
+        "201":
+          description: Connected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderAccount" }
+        "400": { description: No credential, an unset variable, or a key for the other provider }
+        "409": { description: An account with that label already exists for this provider }
+        "403": { description: Host-only }
+
+  /v1/providers/detect:
+    get:
+      summary: What this host already offers
+      description: |
+        Names the environment variables that are set and the CLI login files that
+        exist. It reports whether a credential exists, never what it is.
+      responses:
+        "200": { description: OK }
+        "403": { description: Host-only }
+
+  /v1/providers/{account}:
+    delete:
+      summary: Disconnect an account
+      description: |
+        Deletes the credential as well as the row. Agents running on it keep
+        running — the credential is already in their environment — and their link
+        is cleared rather than the agents being deleted with it.
+      parameters: [{ name: account, in: path, required: true, schema: { type: string } }]
+      responses:
+        "204": { description: Disconnected }
+        "404": { description: Not found }
+        "403": { description: Host-only }
+
+  /v1/usage:
+    get:
+      summary: What the fleet has spent
+      description: |
+        Grouped by provider, agent, model and project in one response, because
+        four round trips to draw one screen is four chances for the parts to
+        disagree. The payload states what the figures cover: list prices only,
+        and only calls a provider actually reported.
+      parameters:
+        - { name: window, in: query, schema: { type: string, default: 24h } }
+        - { name: project, in: query, schema: { type: string } }
+        - { name: agent, in: query, schema: { type: string } }
+        - { name: provider, in: query, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+        "400": { description: The window is not a duration, or is longer than a year }
+        "403": { description: Host-only }
+
+  /v1/usage/series:
+    get:
+      summary: Usage bucketed over time
+      description: Bucket width is chosen to give roughly 48 points whatever the window.
+      parameters:
+        - { name: window, in: query, schema: { type: string, default: 24h } }
+        - { name: project, in: query, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Host-only }
+
+  /v1/heartbeat:
+    get:
+      summary: Live vitals for the dashboard's centre pane
+      description: |
+        Exists so the pane is alive before the event stream has warmed up; the
+        stream animates it afterwards. Rates rather than lifetime totals: a
+        counter that only climbs says nothing about now.
+      parameters: [{ name: project, in: query, schema: { type: string } }]
+      responses:
+        "200": { description: OK }
 
   /mcp:
     post:

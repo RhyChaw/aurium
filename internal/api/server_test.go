@@ -16,11 +16,37 @@ import (
 
 	"github.com/RhyChaw/aurium/internal/agent"
 	"github.com/RhyChaw/aurium/internal/app"
+	"github.com/RhyChaw/aurium/internal/contextengine"
 	"github.com/RhyChaw/aurium/internal/events"
+	"github.com/RhyChaw/aurium/internal/ipc"
+	"github.com/RhyChaw/aurium/internal/providers"
 	"github.com/RhyChaw/aurium/internal/runtime"
 	"github.com/RhyChaw/aurium/internal/runtime/driver"
+	"github.com/RhyChaw/aurium/internal/secrets"
 	"github.com/RhyChaw/aurium/internal/store"
+	"github.com/RhyChaw/aurium/internal/usage"
 )
+
+// testKeyring keeps credentials in memory for the duration of a test.
+type testKeyring struct{ m map[string]string }
+
+func (k *testKeyring) Set(service, account, secret string) error {
+	k.m[service+"/"+account] = secret
+	return nil
+}
+
+func (k *testKeyring) Get(service, account string) (string, error) {
+	v, ok := k.m[service+"/"+account]
+	if !ok {
+		return "", secrets.ErrNotFound
+	}
+	return v, nil
+}
+
+func (k *testKeyring) Delete(service, account string) error {
+	delete(k.m, service+"/"+account)
+	return nil
+}
 
 const hostToken = "aurh_test_host_token"
 
@@ -62,6 +88,10 @@ func newHarness(t *testing.T) *harness {
 	p, _ := st.CreateProject(ctx, "app", root)
 	repo, _ := st.CreateRepository(ctx, p.ID, root, "main", "")
 
+	sec := secrets.New(&secrets.FileFallback{Path: filepath.Join(t.TempDir(), "secrets")})
+	// A fake keyring, so no test reaches the developer's real login keychain.
+	sec.Keyring = &testKeyring{m: map[string]string{}}
+
 	a := &app.App{
 		Store: st, Events: bus, Home: t.TempDir(),
 		Manager: &runtime.Manager{
@@ -70,7 +100,13 @@ func newHarness(t *testing.T) *harness {
 			Adapters: agent.DefaultRegistry(),
 			HomeRoot: t.TempDir(),
 		},
+		Context:   contextengine.New(st, bus),
+		IPC:       ipc.New(st, bus, nil),
+		Secrets:   sec,
+		Providers: providers.New(st, sec, bus),
+		Usage:     usage.New(st, bus),
 	}
+	a.Providers.Home = t.TempDir()
 
 	cA, err := st.CreateContainer(ctx, store.Container{
 		ProjectID: p.ID, RepoID: repo.ID, Branch: "A", Slug: "A",

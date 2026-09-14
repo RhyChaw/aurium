@@ -80,6 +80,10 @@ func (s *Server) routes() {
 
 	s.handle("GET /v1/events", s.eventsSSE, "")
 	s.handle("GET /v1/projects", s.listProjects, "")
+	s.handle("POST /v1/projects", s.createProject, "")
+	s.handle("GET /v1/projects/{project}", s.getProject, "")
+	s.handle("POST /v1/projects/{project}/repos", s.addRepository, "")
+	s.handle("GET /v1/projects/{project}/agents", s.projectAgents, "")
 	s.handle("GET /v1/projects/{project}/containers", s.listContainers, "")
 	s.handle("GET /v1/projects/{project}/tasks", s.listTasks, "")
 	s.handle("POST /v1/projects/{project}/tasks", s.createTask, "task:*")
@@ -90,8 +94,22 @@ func (s *Server) routes() {
 	s.handle("POST /v1/containers/{container}/sync", s.syncContainer, "")
 	s.handle("GET /v1/containers/{container}/agents", s.listAgents, "")
 	s.handle("PATCH /v1/tasks/{task}", s.patchTask, "task:*")
+	s.handle("GET /v1/agents/{agent}", s.getAgent, "")
+	s.handle("GET /v1/agents/{agent}/messages", s.agentMessages, "")
+	s.handle("POST /v1/agents/{agent}/message", s.sendToAgent, "ipc:*")
 	s.handle("GET /v1/approvals", s.listApprovals, "")
 	s.handle("POST /v1/approvals/{approval}/decide", s.decideApproval, "")
+
+	// Provider accounts and what they spend. Host-only, enforced in the
+	// handlers: an agent that could connect an account could hand itself a
+	// credential.
+	s.handle("GET /v1/providers", s.listProviders, "")
+	s.handle("POST /v1/providers", s.connectProvider, "")
+	s.handle("GET /v1/providers/detect", s.detectProviders, "")
+	s.handle("DELETE /v1/providers/{account}", s.disconnectProvider, "")
+	s.handle("GET /v1/usage", s.usageReport, "")
+	s.handle("GET /v1/usage/series", s.usageSeries, "")
+	s.handle("GET /v1/heartbeat", s.heartbeat, "")
 
 	// The MCP endpoint every container reaches through the aurium-mcp shim.
 	s.handle("POST /mcp", s.handleMCP, "gateway:*")
