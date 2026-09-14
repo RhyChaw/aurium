@@ -144,7 +144,9 @@ export async function refreshTranscript(id) {
     ]);
     if (state.openAgent !== id) return; // selection moved while we were away
     update({ transcript: messages ?? [], transcriptAgent: id, agentDetail: detail });
-  } catch (err) {
+  } catch {
+    // A transcript that fails to load leaves the pane empty rather than
+    // showing another agent's messages under this agent's name.
     if (state.openAgent === id) update({ transcript: [], agentDetail: null });
   }
 }

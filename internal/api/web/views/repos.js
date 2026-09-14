@@ -55,6 +55,6 @@ async function addRepo(projectID) {
     await Aurium.addRepo(projectID, { path: path.trim() });
     await refreshDetail(projectID);
   } catch (err) {
-    update({ error: err.message ?? String(err) });
+    update({ notice: err.message ?? String(err) });
   }
 }

@@ -68,7 +68,7 @@ function accountRow(a) {
           await Aurium.disconnectProvider(a.id);
           await reloadProviders();
         } catch (err) {
-          update({ error: err.message ?? String(err) });
+          update({ notice: err.message ?? String(err) });
         }
       },
     }, "disconnect"));
@@ -185,6 +185,6 @@ export async function reloadProviders() {
     ]);
     update({ providers: accounts ?? [], detected });
   } catch (err) {
-    update({ error: err.message ?? String(err) });
+    update({ notice: err.message ?? String(err) });
   }
 }

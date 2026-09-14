@@ -31,7 +31,7 @@ export function connect(onEvent) {
 
   source.onopen = () => {
     retry = 1000;
-    update({ conn: "live", error: null });
+    update({ conn: "live", notice: null });
   };
 
   source.onmessage = (msg) => {

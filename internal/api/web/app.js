@@ -75,8 +75,8 @@ function renderChrome() {
   $("#project-name").textContent = project?.name ?? (state.projects.length ? "—" : "no projects");
 
   const bar = $("#notice");
-  bar.textContent = state.error ?? "";
-  bar.hidden = !state.error;
+  bar.textContent = state.notice ?? "";
+  bar.hidden = !state.notice;
 }
 
 function selectPanel(key) {
@@ -84,7 +84,7 @@ function selectPanel(key) {
   // they were on. Carrying it to the next one would leave a stale sentence
   // over an unrelated screen.
   const leavingWorkspace = state.panel === "workspace" && key !== "workspace";
-  update({ panel: key, error: null });
+  update({ panel: key, notice: null });
   // The pulse repaints ten times a second; there is no reason for it to do so
   // while nobody can see it.
   if (leavingWorkspace) stopHeartbeat();
@@ -205,7 +205,7 @@ async function main() {
   initTheme($("#theme"));
 
   if (!readToken()) {
-    update({ conn: "down", error: "No token in this page. Open the dashboard with `aurium dashboard`." });
+    update({ conn: "down", notice: "No token in this page. Open the dashboard with `aurium dashboard`." });
     subscribe(render);
     render();
     return;
@@ -217,7 +217,7 @@ async function main() {
   try {
     await bootRefresh();
   } catch (err) {
-    update({ conn: "down", error: err.message ?? String(err) });
+    update({ conn: "down", notice: err.message ?? String(err) });
     return;
   }
 

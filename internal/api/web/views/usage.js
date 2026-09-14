@@ -148,6 +148,6 @@ export async function reloadUsage() {
     state.usageSeriesData = series?.series ?? [];
     update({ usage: report });
   } catch (err) {
-    update({ error: err.message ?? String(err) });
+    update({ notice: err.message ?? String(err) });
   }
 }

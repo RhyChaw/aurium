@@ -35,6 +35,11 @@ type Heartbeat struct {
 }
 
 func (s *Server) heartbeat(w http.ResponseWriter, r *http.Request) {
+	// Fleet-wide counts across every project. An agent has no use for a map of
+	// the whole fleet, so this is host-only like the usage routes.
+	if !s.hostOnly(w, r) {
+		return
+	}
 	ctx := r.Context()
 	projectID := r.URL.Query().Get("project")
 

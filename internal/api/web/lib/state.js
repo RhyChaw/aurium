@@ -11,7 +11,10 @@ let pending = false;
 export const state = {
   // --- connection ---
   conn: "connecting", // connecting | live | down
-  error: null,
+  // notice is the single line under the tabs. It carries the result of
+  // whatever the user just did — an error, or a plain fact like "queued to the
+  // agent's inbox" — which is why it is not called `error`.
+  notice: null,
 
   // --- what exists ---
   projects: [],
@@ -29,6 +32,8 @@ export const state = {
   heartbeat: null,
   events: [],
   eventFilter: "",
+  /** follow pins the event list to its newest row. */
+  follow: true,
   approvals: [],
   seenApprovals: new Set(),
 

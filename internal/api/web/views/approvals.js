@@ -34,7 +34,7 @@ function card(a) {
       await Aurium.decide(a.id, decision);
       await reloadApprovals();
     } catch (err) {
-      update({ error: err.message ?? String(err) });
+      update({ notice: err.message ?? String(err) });
       approve.disabled = reject.disabled = false;
     }
   };
@@ -100,6 +100,6 @@ export async function reloadApprovals() {
       notify("Aurium: approvals needed", `${fresh.length} agents are waiting on you.`);
     }
   } catch (err) {
-    update({ error: err.message ?? String(err) });
+    update({ notice: err.message ?? String(err) });
   }
 }

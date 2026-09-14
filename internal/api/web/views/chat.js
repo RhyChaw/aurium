@@ -120,10 +120,10 @@ function composer(a) {
       // "typed" says the text went into the agent's live session; without it
       // the message is only in the inbox, and telling the user it was
       // delivered would be a claim nobody checked.
-      update({ sending: false, error: out?.typed ? null : "queued to the agent's inbox" });
+      update({ sending: false, notice: out?.typed ? null : "queued to the agent's inbox" });
       await refreshTranscript(a.id);
     } catch (err) {
-      update({ sending: false, error: err.message ?? String(err) });
+      update({ sending: false, notice: err.message ?? String(err) });
     }
   };
 
@@ -144,7 +144,7 @@ async function copyAttach(containerID) {
   const cmd = `aurium attach ${containerID}`;
   try {
     await navigator.clipboard.writeText(cmd);
-    update({ error: `copied: ${cmd}` });
+    update({ notice: `copied: ${cmd}` });
   } catch {
     window.prompt("attach with", cmd);
   }

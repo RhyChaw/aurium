@@ -395,3 +395,15 @@ func TestHeartbeatCountsWhatTheRailPaints(t *testing.T) {
 		t.Fatal("the heartbeat must be timestamped, or a stale one looks live")
 	}
 }
+
+// The heartbeat counts every project's agents and every pending approval. An
+// agent has no use for a map of the whole fleet, and handing it one is a free
+// reconnaissance report.
+func TestHeartbeatIsHostOnly(t *testing.T) {
+	h := newHarness(t)
+	res := h.do("GET", "/v1/heartbeat", h.cToken, "")
+	res.Body.Close()
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("heartbeat with a container token = %d, want 403", res.StatusCode)
+	}
+}
