@@ -102,12 +102,22 @@ func (m *Manager) Converse(ctx context.Context, agentID, prompt string) error {
 	_ = m.Store.UpdateAgentStatus(ctx, agentID, store.AgentRunning)
 	m.emit(ctx, events.AgentActive, c, a, map[string]any{"turn": "started"})
 
-	// Where this turn's process runs. Defaults to in-container: no resolver
-	// wired, or the resolver erroring, must reproduce exactly the behaviour
-	// every caller had before this field existed.
+	// Where this turn's process runs. No resolver wired reproduces exactly the
+	// behaviour every caller had before this field existed: in-container. But
+	// a resolver that IS wired and fails must not fall back to in-container
+	// silently — a project set to host placement because the container does
+	// not fit on the machine would then get a container anyway, with nothing
+	// connecting the memory failure minutes later to a config read that
+	// failed here. Fail the turn instead, the way every other setup failure
+	// in this function already does.
 	placement := config.PlacementInContainer
 	if m.Config != nil {
-		if cfg, err := m.Config(ctx, c.ProjectID); err == nil && cfg != nil {
+		cfg, err := m.Config(ctx, c.ProjectID)
+		if err != nil {
+			_ = m.Store.UpdateAgentStatus(ctx, agentID, store.AgentError)
+			return fmt.Errorf("runtime: could not determine agent placement: %w", err)
+		}
+		if cfg != nil {
 			placement = cfg.Sandbox.AgentPlacement
 		}
 	}

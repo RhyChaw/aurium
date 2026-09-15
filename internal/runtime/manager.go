@@ -64,7 +64,10 @@ type Manager struct {
 	// Config resolves a project's aurium.yaml. Optional: a Converse call with
 	// none set — every caller before this field existed — resolves placement
 	// as config.PlacementInContainer, which is the behaviour those callers
-	// already had.
+	// already had. When it IS set, a failed lookup fails the turn rather than
+	// silently falling back to in-container: a project on host placement
+	// because the container does not fit on the machine must not silently
+	// get a container anyway.
 	Config func(ctx context.Context, projectID string) (*config.Config, error)
 }
 

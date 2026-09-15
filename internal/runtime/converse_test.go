@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -380,6 +381,38 @@ func TestConverseHostPlacementErrorsRatherThanEmitAnEmptyMCPConfigPath(t *testin
 	got, _ := m.Store.GetAgent(context.Background(), a.ID)
 	if got.Status == store.AgentRunning {
 		t.Errorf("status must not be left running after the turn failed to start, got %q", got.Status)
+	}
+}
+
+// A resolver that fails must not be absorbed into a quiet fallback to
+// in-container: a project on host placement because the container does not
+// fit on the machine would then get a container anyway, with nothing
+// connecting the eventual memory failure to a config read that failed here.
+func TestConverseFailsWhenPlacementCannotBeResolved(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	resolverErr := fmt.Errorf("aurium.yaml: permission denied")
+	m.Config = func(context.Context, string) (*config.Config, error) {
+		return nil, resolverErr
+	}
+
+	err := m.Converse(context.Background(), a.ID, "hello")
+	if err == nil {
+		t.Fatal("a failed placement resolver must fail the turn, not fall back to in-container")
+	}
+	if !strings.Contains(err.Error(), "placement") {
+		t.Errorf("error must name placement/config resolution so the cause is findable: %v", err)
+	}
+	if !errors.Is(err, resolverErr) {
+		t.Errorf("the resolver's own error must survive: %v", err)
+	}
+	if ad.lastCmd != nil {
+		t.Error("the turn must not have run at all")
+	}
+
+	got, _ := m.Store.GetAgent(context.Background(), a.ID)
+	if got.Status != store.AgentError {
+		t.Errorf("status = %q, want error", got.Status)
 	}
 }
 
