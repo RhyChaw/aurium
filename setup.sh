@@ -63,6 +63,13 @@ install_go() {
 	mkdir -p "$PREFIX"
 	rm -rf "${PREFIX}/go"
 	tar -C "$PREFIX" -xzf "${tmp}/go.tar.gz"
+
+	# Not left to the EXIT trap above: this script's last line is `exec
+	# ./bin/aurium doctor --fix`, and exec replaces the shell's process image
+	# instead of exiting it, so an EXIT trap set here never fires on the
+	# success path. The trap still covers every early-exit and die() path
+	# before this point; this is only for the one it can't reach.
+	rm -rf "$tmp"
 }
 
 detect_platform
