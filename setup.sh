@@ -1,10 +1,18 @@
 #!/bin/sh
 # Aurium setup — clone to running dashboard, one command.
 #
+# Run it from a checkout: `./setup.sh`. It is not a curl-pipe installer and
+# does not try to be one — it reads go-checksums.txt from its own directory and
+# builds the tree it sits in, so it needs the clone to already exist. Piped
+# from curl there is no clone and no checksum file, and it would stop.
+#
+# What it does promise is that you can read the whole thing before running it:
+# no sudo, no writes outside $HOME, and the one download it makes is verified
+# against a SHA256 committed to this repository.
+#
 # Deliberately POSIX sh with no make, no git and no python: on macOS all three
 # are disabled until the Xcode licence is accepted, which is one of the exact
-# conditions this script exists to survive. It never uses sudo and never writes
-# outside $HOME, so piping it from curl is a defensible thing to ask of anyone.
+# conditions this script exists to survive.
 set -eu
 
 GO_VERSION=go1.27.1
@@ -33,9 +41,17 @@ detect_platform() {
 
 # Judge go by running it. A binary that exists and fails is the failure mode
 # this whole script is built around.
+#
+# Takes the candidate to test — a bare name to look up on PATH, or an absolute
+# path — because a toolchain at ${PREFIX}/go/bin from some earlier run deserves
+# exactly the same floor test as one on PATH. Adopted unexamined, a stale one
+# there means a GO_VERSION bump silently never installs and the build dies on
+# `go.mod requires go >= 1.25` instead of getting the clean reinstall this
+# script exists to perform.
 go_is_usable() {
-	command -v go >/dev/null 2>&1 || return 1
-	v=$(go version 2>/dev/null) || return 1
+	candidate=$1
+	command -v "$candidate" >/dev/null 2>&1 || return 1
+	v=$("$candidate" version 2>/dev/null) || return 1
 	minor=$(printf '%s' "$v" | sed -n 's/.*go1\.\([0-9][0-9]*\).*/\1/p')
 	[ -n "$minor" ] && [ "$minor" -ge "$GO_FLOOR_MINOR" ]
 }
@@ -49,7 +65,11 @@ install_go() {
 	trap 'rm -rf "$tmp"' EXIT
 
 	say "installing ${GO_VERSION} for ${OS}/${ARCH} into ${PREFIX}/go"
-	curl -fL --retry 1 -o "${tmp}/go.tar.gz" "https://go.dev/dl/${tarball}" ||
+	# --proto/--proto-redir pin the transfer to https, redirects included. The
+	# committed checksum below already makes a downgrade unexploitable; this is
+	# free defence in depth for the one thing this script fetches.
+	curl -fL --proto '=https' --proto-redir '=https' --retry 1 \
+		-o "${tmp}/go.tar.gz" "https://go.dev/dl/${tarball}" ||
 		die "download failed; fetch https://go.dev/dl/${tarball} by hand and extract it to ${PREFIX}/go"
 
 	if command -v shasum >/dev/null 2>&1; then
@@ -75,10 +95,13 @@ install_go() {
 detect_platform
 
 fresh_install=0
-if go_is_usable; then
+if go_is_usable go; then
 	GO=go
 else
-	if [ ! -x "${PREFIX}/go/bin/go" ]; then
+	# Same floor test, not a bare existence check: install_go starts by
+	# removing ${PREFIX}/go, so reinstalling over a stale toolchain is the
+	# clean path rather than a special case.
+	if ! go_is_usable "${PREFIX}/go/bin/go"; then
 		install_go
 		fresh_install=1
 	fi

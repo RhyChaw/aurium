@@ -21,6 +21,11 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - name: shellcheck setup.sh
+        # Ubuntu's runner images preinstall shellcheck; the macOS ones do not,
+        # so this step went red on macos-latest for every PR. Linting the same
+        # file on both legs was pure duplication anyway — setup.sh is one file
+        # and shellcheck's verdict on it does not vary by runner.
+        if: matrix.os == 'ubuntu-latest'
         run: shellcheck setup.sh
 
   # The real test for Task 6: a machine with no Go toolchain at all, and no
