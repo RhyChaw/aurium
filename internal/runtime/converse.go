@@ -3,12 +3,17 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/RhyChaw/aurium/internal/agent"
+	"github.com/RhyChaw/aurium/internal/config"
+	"github.com/RhyChaw/aurium/internal/contextengine"
 	"github.com/RhyChaw/aurium/internal/events"
+	"github.com/RhyChaw/aurium/internal/gitx"
 	"github.com/RhyChaw/aurium/internal/ipc"
 	"github.com/RhyChaw/aurium/internal/store"
 )
@@ -101,10 +106,77 @@ func (m *Manager) Converse(ctx context.Context, agentID, prompt string) error {
 	_ = m.Store.UpdateAgentStatus(ctx, agentID, store.AgentRunning)
 	m.emit(ctx, events.AgentActive, c, a, map[string]any{"turn": "started"})
 
+	// Where this turn's process runs. No resolver wired reproduces exactly the
+	// behaviour every caller had before this field existed: in-container. But
+	// a resolver that IS wired and fails must not fall back to in-container
+	// silently — a project set to host placement because the container does
+	// not fit on the machine would then get a container anyway, with nothing
+	// connecting the memory failure minutes later to a config read that
+	// failed here. Fail the turn instead, the way every other setup failure
+	// in this function already does.
+	cfg, err := m.configFor(ctx, c.ProjectID)
+	if err != nil {
+		_ = m.Store.UpdateAgentStatus(ctx, agentID, store.AgentError)
+		return fmt.Errorf("runtime: could not determine agent placement: %w", err)
+	}
+	placement := config.PlacementInContainer
+	if cfg != nil {
+		placement = cfg.Sandbox.AgentPlacement
+	}
+	hostSandboxed := placement == config.PlacementHost
+
+	// Both fields are set from this one decision, or neither is. Setting
+	// HostSandboxed with an empty MCPConfigPath would make HeadlessCommand
+	// emit a malformed `--mcp-config ""` — a failure far from its cause — so
+	// an MCP config path we cannot name is a hard error instead.
+	mcpConfigPath := ""
+	projectContext := ""
+	if hostSandboxed {
+		if m.SnapshotHome == "" {
+			_ = m.Store.UpdateAgentStatus(ctx, agentID, store.AgentError)
+			return fmt.Errorf(
+				"runtime: agent_placement %q needs an MCP config path, but this manager has no SnapshotHome set",
+				config.PlacementHost)
+		}
+		mcpConfigPath = agent.MCPConfigPath(m.SnapshotHome, agentID)
+
+		// The projection has to travel with the turn. In-container it arrives
+		// as an @-import in the container's ~/.claude/CLAUDE.md; a host
+		// process reads the developer's CLAUDE.md instead and would never see
+		// it, so it is read here and handed to the adapter as text. Read
+		// fresh on every turn, which is strictly better than the import: the
+		// import is re-read when the agent chooses to, this is current.
+		//
+		// A projection that does not exist yet is not an error — an agent
+		// with no context is the same agent the in-container path would get
+		// from a dangling import.
+		if body, err := os.ReadFile(
+			filepath.Join(c.Worktree, gitx.AuriumDir, contextengine.ProjectionFile)); err == nil {
+			projectContext = string(body)
+		}
+
+		// One authenticated request against the endpoint the config names,
+		// before anything else. A host turn whose gateway is unreachable or
+		// unauthorized does not fail: `claude -p --output-format json`
+		// answers "is_error": false with an empty permission_denials, and
+		// with Bash denied the agent has no tools at all. Nothing downstream
+		// of here can tell that apart from a real reply, so it is caught
+		// here, positively, by asking the gateway for its tools.
+		if err := m.preflightHost(ctx, mcpConfigPath); err != nil {
+			_ = m.Store.UpdateAgentStatus(ctx, agentID, store.AgentError)
+			m.reply(ctx, c, a, err.Error(), true)
+			return err
+		}
+	}
+
 	// Continue the conversation when there is one to continue. The first turn
 	// has no session, and `--continue` against nothing is an error rather than
 	// a fresh start.
-	opts := agent.ExecOpts{Model: a.Model, Continue: m.hasSpoken(ctx, agentID)}
+	opts := agent.ExecOpts{
+		Model: a.Model, Continue: m.hasSpoken(ctx, agentID),
+		HostSandboxed: hostSandboxed, MCPConfigPath: mcpConfigPath,
+		ProjectContext: projectContext,
+	}
 	cmd := adapter.HeadlessCommand(prompt, opts)
 	if len(cmd) == 0 {
 		_ = m.Store.UpdateAgentStatus(ctx, agentID, store.AgentIdle)
@@ -124,6 +196,19 @@ func (m *Manager) Converse(ctx context.Context, agentID, prompt string) error {
 	// out forever, and connecting one appeared to do nothing. "Connect your
 	// account, then throw away every agent you already had" is not an answer.
 	runOpts := execOptsFor(c)
+
+	// An in-container turn inherits the container's environment, which
+	// buildSpec assembled from sandbox.env, the declared env_passthrough
+	// names and the resolved credential. A host turn has no such environment
+	// to inherit, so the same declared set is assembled for it here —
+	// env_passthrough exists precisely to name what crosses the boundary, and
+	// the two placements must agree on what the agent can see. runHost builds
+	// the rest (PATH, HOME and a few others); nothing else of the daemon's own
+	// environment reaches the agent.
+	if hostSandboxed && cfg != nil {
+		runOpts.Env = append(runOpts.Env, declaredSandboxEnv(cfg.Sandbox)...)
+	}
+
 	accountID := a.ProviderAccountID
 	if accountID == "" {
 		// Adopt the default account, so an agent that predates it is billed
@@ -144,7 +229,7 @@ func (m *Manager) Converse(ctx context.Context, agentID, prompt string) error {
 	runCtx, cancel := context.WithTimeout(ctx, ConversationTimeout)
 	defer cancel()
 
-	res, err := drv.Exec(runCtx, c.RuntimeID, cmd, runOpts)
+	res, err := execTurn(runCtx, placement, drv, c.RuntimeID, cmd, runOpts)
 	if err != nil {
 		// The agent is not broken as an agent — the call failed — but the
 		// human needs to see it, so it goes in the transcript rather than only

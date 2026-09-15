@@ -26,6 +26,11 @@ sandbox:
   driver: %s
   image: %s
   agent: %s
+  # Where the agent's own process runs. "in-container" is the default and
+  # sizes the container for a working agent. "host" runs it on your machine
+  # at roughly a fifth of the memory, denies its built-in shell, and routes
+  # its commands back into this container.
+  agent_placement: in-container
   resources: { cpus: 2, memory: 2g, pids: 2048 }
   idle_pause_minutes: 15
   # Ports are published on 127.0.0.1 only.

@@ -21,7 +21,10 @@ import (
 )
 
 // DefaultAddr is the loopback TCP address the daemon listens on.
-const DefaultAddr = "127.0.0.1:7770"
+//
+// Aliased from internal/app because the wiring there needs the same value and
+// this package imports that one, not the other way round.
+const DefaultAddr = app.DefaultAddr
 
 // Daemon owns the listeners and the background workers.
 type Daemon struct {
@@ -58,6 +61,11 @@ func New(o Options) (*Daemon, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The address a host-placed agent dials is THIS daemon's, not a constant.
+	// app.Open can only guess the default; --addr may say otherwise, and an
+	// MCP config naming the wrong port does not fail loudly — a host turn
+	// whose only server is unreachable answers cheerfully with no tools.
+	a.Manager.HostAuriumURL = app.HostBaseURL(o.Addr)
 
 	token, err := ensureHostToken(filepath.Join(a.Home, "token"))
 	if err != nil {

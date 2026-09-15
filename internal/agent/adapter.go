@@ -7,6 +7,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,6 +47,30 @@ type Projection struct {
 	// to disk: it is delivered as /run/aurium/token and $AURIUM_TOKEN so it can
 	// be revoked without rewriting agent config.
 	Token string
+
+	// HostSandboxed says this agent's turns run on the host rather than
+	// inside its container (agent_placement: host). Home and ContextPath
+	// above describe the container, which such an agent never even starts
+	// in; only when this is true does Prepare also write the host-side MCP
+	// config named by AgentID and AuriumHome, below. A host process has no
+	// /run/aurium/token to read Token from instead, so here Prepare writes
+	// it into that config's HTTP headers (Authorization: Bearer ...) — the
+	// one place this design puts the bearer token on disk, and only on the
+	// host's own machine.
+	HostSandboxed bool
+	// AgentID and AuriumHome combine, through MCPConfigPath, to say where a
+	// host-sandboxed turn's MCP config belongs — the same computation the
+	// runtime uses for ExecOpts.MCPConfigPath, so the two cannot disagree.
+	// Only read when HostSandboxed.
+	AgentID    string
+	AuriumHome string
+	// HostAuriumURL is the daemon's BASE address as reached from the host
+	// itself — no /mcp suffix, the same convention cmd/aurium-mcp/main.go's
+	// cfg.URL follows. AuriumURL's host.docker.internal resolves only
+	// inside a container, so a host-sandboxed turn needs its own base
+	// address for the same daemon; MCPEndpoint appends the actual route
+	// when the client-facing config is built. Only read when HostSandboxed.
+	HostAuriumURL string
 }
 
 // StartOpts controls launching an agent.
@@ -54,6 +79,13 @@ type StartOpts struct {
 	Resume bool
 	Model  string
 	Prompt string
+	// AgentID pins the created agent row to an id the caller already
+	// computed, rather than letting the store generate one. Create needs
+	// this: Prepare writes a host-sandboxed turn's MCP config at a path
+	// keyed by agent id (agent.MCPConfigPath) before the agent row exists,
+	// so the id must be chosen first and carried here to keep the two in
+	// agreement. Empty generates one as before.
+	AgentID string
 }
 
 // ExecOpts controls a headless one-shot run.
@@ -66,6 +98,25 @@ type ExecOpts struct {
 	// set it: there is no session to continue, and asking to continue nothing
 	// is an error rather than a fresh start.
 	Continue bool
+	// HostSandboxed says this turn runs on the host rather than in its
+	// container. The agent's own shell is denied and its commands go back into
+	// the container through aurium_exec, so the container remains the only place
+	// project commands run.
+	HostSandboxed bool
+	// MCPConfigPath points at the JSON naming the daemon's MCP endpoint. Only
+	// read when HostSandboxed.
+	MCPConfigPath string
+	// ProjectContext is the rendered .aurium/CONTEXT.md — the agent's
+	// objective, constraints and stack position.
+	//
+	// It is carried here, as text, because a host turn has no other way to
+	// receive it. The in-container path delivers it as an @-import in the
+	// container's ~/.claude/CLAUDE.md, which only works because $HOME there is
+	// the one Prepare wrote into. A host process runs with the developer's own
+	// environment and reads the developer's ~/.claude/CLAUDE.md, so anything
+	// written under the container's $HOME reaches it nowhere. Only read when
+	// HostSandboxed.
+	ProjectContext string
 }
 
 // ExecResult is the outcome of a headless run.
@@ -107,6 +158,17 @@ type Adapter interface {
 	// HeadlessCommand is the argv for a one-shot run; nil when unsupported.
 	HeadlessCommand(prompt string, o ExecOpts) []string
 	Capabilities() Caps
+}
+
+// MCPConfigPath is where a host-sandboxed turn's MCP config lives:
+// ~/.aurium/agents/<agentID>/mcp.json.
+//
+// This is the ONE place that composes this path. The runtime points
+// ExecOpts.MCPConfigPath at exactly what this returns, and Prepare writes the
+// file there; both must call this rather than build the path themselves, or
+// they can silently disagree and an agent starts with no tools and no error.
+func MCPConfigPath(auriumHome, agentID string) string {
+	return filepath.Join(auriumHome, "agents", agentID, "mcp.json")
 }
 
 // Registry maps adapter names to implementations.
@@ -206,6 +268,114 @@ func mcpServerJSON(command, auriumURL string) string {
 `, command, auriumURL)
 }
 
+// MCPEndpoint turns a daemon base URL into the one route it actually serves
+// MCP on: POST /mcp (internal/api/server.go registers nothing at "/" but a
+// GET). cmd/aurium-mcp/main.go's forward already does exactly this
+// (strings.TrimRight(cfg.URL, "/")+"/mcp"); this mirrors it so the two
+// clients of the daemon's base URL cannot compute two different endpoints.
+// Exported so a test can check it against the route the daemon actually
+// registers, not just against itself.
+//
+// A base URL (HostAuriumURL, AuriumURL, cmd/aurium-mcp's cfg.URL) stays a
+// base — other readers may depend on that — so the path is appended only
+// here, where a client-facing config is built.
+func MCPEndpoint(base string) string {
+	return strings.TrimRight(base, "/") + "/mcp"
+}
+
+// hostMCPServerJSON is mcpServerJSON's counterpart for a turn that runs on the
+// host rather than in a container. It spawns no binary at all: the
+// aurium-mcp shim exists only to bridge stdio to HTTP from inside a
+// container, where nothing can reach the daemon's socket directly (§10's
+// host placement design). A process already running on the host has no such
+// problem — it names the daemon's /mcp endpoint over HTTP transport
+// directly. Shape confirmed empirically against `claude mcp add
+// --transport http --scope project aurium <url> --header "Authorization:
+// Bearer <token>"` and reading the .mcp.json it wrote (see the task-6
+// report): {"mcpServers": {"aurium": {"type": "http", "url": ..., "headers":
+// {"Authorization": "Bearer ..."}}}}.
+func hostMCPServerJSON(auriumBaseURL, token string) string {
+	return fmt.Sprintf(`{
+  "mcpServers": {
+    "aurium": {
+      "type": "http",
+      "url": %q,
+      "headers": {
+        "Authorization": %q
+      }
+    }
+  }
+}
+`, MCPEndpoint(auriumBaseURL), "Bearer "+token)
+}
+
+// ErrNoHostToken is returned when a host-sandboxed agent is prepared without a
+// bearer token.
+//
+// An in-container agent with no token loses the gateway tools but keeps its own
+// Bash and stays useful for project work. A host-sandboxed one has its shell
+// denied as well, so a config carrying "Authorization: Bearer " — which the API
+// middleware answers with a 401 — leaves it with no tools and no shell at all.
+// The CLI reports that as a perfectly normal, empty reply: `claude -p
+// --output-format json` returns "is_error": false with no permission_denials
+// when its only MCP server is unauthorized. Nothing downstream can tell that
+// apart from a working turn, so the only place it can be caught is here,
+// before the config is written.
+var ErrNoHostToken = errors.New(
+	"agent: a host-sandboxed agent needs a gateway token, and none was issued; " +
+		"without one its only MCP server is refused and, with its own shell denied, " +
+		"it would run with no tools at all")
+
+// writeHostMCPConfig writes the file agent.MCPConfigPath names — the ONE
+// place that composes that path, called here exactly as the runtime calls it
+// for ExecOpts.MCPConfigPath, so Prepare and HeadlessCommand cannot disagree
+// about where it lives. Called only when p.HostSandboxed.
+func writeHostMCPConfig(p Projection) error {
+	if p.Token == "" {
+		return ErrNoHostToken
+	}
+	path := MCPConfigPath(p.AuriumHome, p.AgentID)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(hostMCPServerJSON(p.HostAuriumURL, p.Token)), 0o644)
+}
+
 // projectionHeader explains the imported file to whoever opens it.
 const projectionHeader = `<!-- Added by Aurium. The file below is regenerated by auriumd whenever
      this container's context changes; do not edit it directly. -->`
+
+// hostPlacementNotice tells a host-sandboxed agent why its shell is gone and
+// where its commands actually run.
+//
+// The spike (2026-09-14) showed an agent meeting `go: command not found` will
+// otherwise spend turns searching /usr/local/go/bin, /opt/homebrew/bin/go and
+// ~/go/bin before concluding — the environment split is intended, but an
+// agent not told about it treats it as a broken machine.
+const hostPlacementNotice = `Your shell runs inside this project's container, not on the host machine.
+Use the aurium_exec tool for every command. The container has the project's
+toolchain; the host may not have it at all. If a command reports that a tool
+is missing, that is the container's environment telling you something true —
+do not go looking for it elsewhere on the machine.`
+
+// contextHeading introduces the projection inlined into a host turn's system
+// prompt, so the agent can tell Aurium's context from the rest of the prompt.
+const contextHeading = "This container's Aurium context (.aurium/CONTEXT.md):"
+
+// hostSystemPrompt is what a host-sandboxed turn receives through
+// --append-system-prompt: the placement notice, plus the context projection
+// the in-container path delivers as an @-import.
+//
+// Both travel in argv rather than on disk. A host turn is launched with the
+// developer's own environment — nothing sets HOME — so it reads the
+// developer's ~/.claude/CLAUDE.md, never the one Prepare wrote under the
+// container's $HOME. Redirecting HOME instead would cohere only for the
+// `local` driver, whose $HOME is a host directory; under Docker it is a path
+// inside the rootfs that does not exist out here at all.
+func hostSystemPrompt(projectContext string) string {
+	prompt := hostPlacementNotice
+	if body := strings.TrimSpace(projectContext); body != "" {
+		prompt += "\n\n" + contextHeading + "\n\n" + body
+	}
+	return prompt
+}

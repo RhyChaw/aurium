@@ -11,7 +11,7 @@ import (
 
 const snapshotColumns = `id, container_id, seq, COALESCE(label,''), trigger,
 	head_sha, tree_ref, base_sha, image_ref, manifest_path, context_version,
-	COALESCE(bytes,0), created_at`
+	COALESCE(bytes,0), created_at, includes_conversation, COALESCE(note,'')`
 
 // NextSnapshotSeq returns the next per-container sequence number.
 //
@@ -35,10 +35,12 @@ func (s *Store) CreateSnapshot(ctx context.Context, sn Snapshot) (Snapshot, erro
 
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO snapshots (id, container_id, seq, label, trigger, head_sha, tree_ref,
-			base_sha, image_ref, manifest_path, context_version, bytes, created_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			base_sha, image_ref, manifest_path, context_version, bytes, created_at,
+			includes_conversation, note)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		sn.ID, sn.ContainerID, sn.Seq, nullable(sn.Label), sn.Trigger, sn.HeadSHA, sn.TreeRef,
-		sn.BaseSHA, sn.ImageRef, sn.ManifestPath, sn.ContextVersion, sn.Bytes, sn.CreatedAt)
+		sn.BaseSHA, sn.ImageRef, sn.ManifestPath, sn.ContextVersion, sn.Bytes, sn.CreatedAt,
+		sn.IncludesConversation, nullable(sn.Note))
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("store: create snapshot %d for %s: %w", sn.Seq, sn.ContainerID, err)
 	}
@@ -125,6 +127,7 @@ func scanSnapshotRow(sc scanner) (Snapshot, error) {
 	var sn Snapshot
 	err := sc.Scan(&sn.ID, &sn.ContainerID, &sn.Seq, &sn.Label, &sn.Trigger,
 		&sn.HeadSHA, &sn.TreeRef, &sn.BaseSHA, &sn.ImageRef, &sn.ManifestPath,
-		&sn.ContextVersion, &sn.Bytes, &sn.CreatedAt)
+		&sn.ContextVersion, &sn.Bytes, &sn.CreatedAt,
+		&sn.IncludesConversation, &sn.Note)
 	return sn, err
 }

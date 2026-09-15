@@ -3,7 +3,11 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -11,7 +15,9 @@ import (
 
 	"github.com/RhyChaw/aurium/internal/agent"
 	"github.com/RhyChaw/aurium/internal/config"
+	"github.com/RhyChaw/aurium/internal/contextengine"
 	"github.com/RhyChaw/aurium/internal/events"
+	"github.com/RhyChaw/aurium/internal/gitx"
 	"github.com/RhyChaw/aurium/internal/ipc"
 	"github.com/RhyChaw/aurium/internal/runtime/driver"
 	"github.com/RhyChaw/aurium/internal/store"
@@ -29,6 +35,9 @@ type echoAdapter struct {
 	exitCode int
 	// lastCmd records what was asked for, so continuation can be asserted.
 	lastCmd []string
+	// lastOpts records the ExecOpts a turn was built with, so placement can
+	// be asserted without parsing argv.
+	lastOpts agent.ExecOpts
 }
 
 func (e *echoAdapter) Name() string                   { return "echo" }
@@ -44,6 +53,7 @@ func (e *echoAdapter) Capabilities() agent.Caps {
 }
 
 func (e *echoAdapter) HeadlessCommand(prompt string, o agent.ExecOpts) []string {
+	e.lastOpts = o
 	body := strings.ReplaceAll(e.envelope, "PROMPT", prompt)
 	script := fmt.Sprintf("cat <<'EOF'\n%s\nEOF\n", body)
 	if e.exitCode != 0 {
@@ -303,6 +313,359 @@ func TestConverseRefusesAnAdapterThatCannotAnswer(t *testing.T) {
 	// The message has to name the way out, which is a terminal.
 	if !strings.Contains(err.Error(), "aurium attach "+c.ID) {
 		t.Fatalf("the refusal must point at attach: %v", err)
+	}
+}
+
+// In-container placement is the default and must behave exactly as it did
+// before host placement existed: no resolver is even required for it, and a
+// turn must not enable the shell denial meant only for the host.
+func TestConverseInContainerPlacementLeavesHostSandboxedFalse(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	// m.Config is intentionally left nil: this is the state of every caller
+	// before this field existed, and it must resolve to in-container.
+
+	if err := m.Converse(context.Background(), a.ID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if ad.lastOpts.HostSandboxed {
+		t.Error("in-container placement must not set HostSandboxed")
+	}
+	if ad.lastOpts.MCPConfigPath != "" {
+		t.Errorf("in-container placement must not set an MCP config path, got %q", ad.lastOpts.MCPConfigPath)
+	}
+}
+
+// fakeGateway stands in for auriumd's POST /mcp for the host preflight: a
+// turn that cannot reach its gateway never starts, so every host-placement
+// test needs one that works.
+//
+// tools controls what it advertises and token what it accepts, so a test can
+// reproduce each of the three ways a host turn silently ends up with no tools.
+type fakeGateway struct {
+	tools []string
+	token string
+	calls int
+}
+
+func (g *fakeGateway) start(t *testing.T) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /mcp", func(w http.ResponseWriter, r *http.Request) {
+		g.calls++
+		if g.token != "" && r.Header.Get("Authorization") != "Bearer "+g.token {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		list := make([]map[string]any, 0, len(g.tools))
+		for _, name := range g.tools {
+			list = append(list, map[string]any{"name": name})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0", "id": 1,
+			"result": map[string]any{"tools": list},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// hostPlaced switches a converse fixture to host placement with a working
+// gateway: the config the agent will present is written where
+// HeadlessCommand will point --mcp-config, exactly as Prepare writes it.
+func hostPlaced(t *testing.T, m *Manager, agentID string, gw *fakeGateway) *httptest.Server {
+	t.Helper()
+	srv := gw.start(t)
+	m.SnapshotHome = t.TempDir()
+	m.HostAuriumURL = srv.URL
+	m.Config = func(context.Context, string) (*config.Config, error) {
+		return &config.Config{Sandbox: config.Sandbox{AgentPlacement: config.PlacementHost}}, nil
+	}
+	writeHostMCPConfigForTest(t, agent.MCPConfigPath(m.SnapshotHome, agentID), srv.URL, gw.token)
+	return srv
+}
+
+func writeHostMCPConfigForTest(t *testing.T, path, baseURL, token string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := fmt.Sprintf(
+		`{"mcpServers":{"aurium":{"type":"http","url":%q,"headers":{"Authorization":%q}}}}`,
+		agent.MCPEndpoint(baseURL), "Bearer "+token)
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Host placement is the one case where HeadlessCommand denies the agent's own
+// shell (§ agent.ExecOpts.HostSandboxed), which is the whole security property
+// of the design. If this is ever false under host placement, the agent's
+// shell runs fully enabled on the host.
+func TestConverseHostPlacementSetsHostSandboxedAndMCPConfigPath(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	hostPlaced(t, m, a.ID, &fakeGateway{tools: []string{"aurium_exec"}, token: "tok_test"})
+
+	if err := m.Converse(context.Background(), a.ID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if !ad.lastOpts.HostSandboxed {
+		t.Fatal("host placement must set HostSandboxed")
+	}
+	want := agent.MCPConfigPath(m.SnapshotHome, a.ID)
+	if ad.lastOpts.MCPConfigPath != want {
+		t.Errorf("MCPConfigPath = %q, want %q", ad.lastOpts.MCPConfigPath, want)
+	}
+	if ad.lastOpts.MCPConfigPath == "" {
+		t.Fatal("host placement must never produce an empty MCPConfigPath")
+	}
+}
+
+// HostSandboxed and MCPConfigPath must be set together or not at all: the
+// combination of HostSandboxed=true with an empty path makes HeadlessCommand
+// emit a malformed `--mcp-config ""`, which fails far from its cause. Rather
+// than let that happen, a turn that cannot name the path fails clearly here.
+func TestConverseHostPlacementErrorsRatherThanEmitAnEmptyMCPConfigPath(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	m.SnapshotHome = "" // no way to name the path
+	m.Config = func(context.Context, string) (*config.Config, error) {
+		return &config.Config{Sandbox: config.Sandbox{AgentPlacement: config.PlacementHost}}, nil
+	}
+
+	err := m.Converse(context.Background(), a.ID, "hello")
+	if err == nil {
+		t.Fatal("host placement with no way to name the MCP config path must be an error")
+	}
+	if ad.lastCmd != nil {
+		t.Error("the turn must not have run at all")
+	}
+
+	got, _ := m.Store.GetAgent(context.Background(), a.ID)
+	if got.Status == store.AgentRunning {
+		t.Errorf("status must not be left running after the turn failed to start, got %q", got.Status)
+	}
+}
+
+// A resolver that fails must not be absorbed into a quiet fallback to
+// in-container: a project on host placement because the container does not
+// fit on the machine would then get a container anyway, with nothing
+// connecting the eventual memory failure to a config read that failed here.
+func TestConverseFailsWhenPlacementCannotBeResolved(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	resolverErr := fmt.Errorf("aurium.yaml: permission denied")
+	m.Config = func(context.Context, string) (*config.Config, error) {
+		return nil, resolverErr
+	}
+
+	err := m.Converse(context.Background(), a.ID, "hello")
+	if err == nil {
+		t.Fatal("a failed placement resolver must fail the turn, not fall back to in-container")
+	}
+	if !strings.Contains(err.Error(), "placement") {
+		t.Errorf("error must name placement/config resolution so the cause is findable: %v", err)
+	}
+	if !errors.Is(err, resolverErr) {
+		t.Errorf("the resolver's own error must survive: %v", err)
+	}
+	if ad.lastCmd != nil {
+		t.Error("the turn must not have run at all")
+	}
+
+	got, _ := m.Store.GetAgent(context.Background(), a.ID)
+	if got.Status != store.AgentError {
+		t.Errorf("status = %q, want error", got.Status)
+	}
+}
+
+// The delivery test. A host turn reads the DEVELOPER's ~/.claude/CLAUDE.md,
+// never the one Prepare wrote under the container's $HOME, so asserting that
+// file was written proves nothing about what the agent receives. This asserts
+// the argv the process is actually launched with — the ExecOpts the runtime
+// built, run through the real Claude adapter that builds the command line.
+func TestConverseHostPlacementPutsTheNoticeAndContextInTheArgv(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, c, a := converseFixture(t, ad)
+	hostPlaced(t, m, a.ID, &fakeGateway{tools: []string{"aurium_exec"}, token: "tok_test"})
+
+	// The projection the context engine writes into the worktree; this is the
+	// agent's objective, constraints and stack position.
+	projection := filepath.Join(c.Worktree, gitx.AuriumDir, contextengine.ProjectionFile)
+	if err := os.MkdirAll(filepath.Dir(projection), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(projection,
+		[]byte("# Objective\nMake the parser accept trailing commas.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := m.Converse(context.Background(), a.ID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Through the REAL adapter, not a stub: this is the command line the host
+	// process is launched with.
+	argv := (&agent.Claude{}).HeadlessCommand("hello", ad.lastOpts)
+	var prompt string
+	for i, arg := range argv {
+		if arg == "--append-system-prompt" && i+1 < len(argv) {
+			prompt = argv[i+1]
+		}
+	}
+	if prompt == "" {
+		t.Fatalf("the launched process receives no system prompt at all: %v", argv)
+	}
+	if !strings.Contains(prompt, "Use the aurium_exec tool for every command.") {
+		t.Errorf("the placement notice never reaches the process:\n%s", prompt)
+	}
+	if !strings.Contains(prompt, "Make the parser accept trailing commas.") {
+		t.Errorf("the context projection never reaches the process:\n%s", prompt)
+	}
+}
+
+// In-container placement delivers its instructions through the container's
+// own ~/.claude/CLAUDE.md, which its process genuinely reads. It must not
+// start carrying them in argv as well.
+func TestConverseInContainerPlacementCarriesNoProjectContextInArgv(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+
+	if err := m.Converse(context.Background(), a.ID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if ad.lastOpts.ProjectContext != "" {
+		t.Errorf("in-container placement must not carry the projection in argv, got %q",
+			ad.lastOpts.ProjectContext)
+	}
+}
+
+// The silent failure this whole preflight exists for. With its MCP server
+// unreachable or unauthorized, `claude -p --output-format json` returns
+// "is_error": false and an empty permission_denials; with Bash denied too,
+// the agent has no tools and no shell. So the turn must not run at all.
+func TestConverseHostPlacementFailsWhenTheGatewayRefusesItsToken(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	gw := &fakeGateway{tools: []string{"aurium_exec"}, token: "the-real-token"}
+	srv := hostPlaced(t, m, a.ID, gw)
+	// Overwrite the config with a token the gateway will not accept — the
+	// production case, where Projection.Token was empty.
+	writeHostMCPConfigForTest(t, agent.MCPConfigPath(m.SnapshotHome, a.ID), srv.URL, "")
+
+	err := m.Converse(context.Background(), a.ID, "hello")
+	if err == nil {
+		t.Fatal("a host turn whose gateway refuses its token must fail, not report an empty success")
+	}
+	if !errors.Is(err, ErrHostGatewayUnusable) {
+		t.Errorf("the failure must be nameable: %v", err)
+	}
+	if ad.lastCmd != nil {
+		t.Error("the turn must not have run at all")
+	}
+	// The human has to see it, so it goes in the transcript as a warning
+	// rather than only into a log.
+	msgs := transcript(t, m, a.ID)
+	if len(msgs) != 1 || msgs[0].Type != ipc.TypeWarning {
+		t.Fatalf("want one WARNING in the transcript, got %+v", msgs)
+	}
+}
+
+func TestConverseHostPlacementFailsWhenTheDaemonIsNotListening(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	gw := &fakeGateway{tools: []string{"aurium_exec"}}
+	srv := hostPlaced(t, m, a.ID, gw)
+	srv.Close() // the daemon is simply not running
+
+	err := m.Converse(context.Background(), a.ID, "hello")
+	if err == nil {
+		t.Fatal("an unreachable gateway must fail the turn by name")
+	}
+	if !errors.Is(err, ErrHostGatewayUnusable) {
+		t.Errorf("the failure must be nameable: %v", err)
+	}
+	if ad.lastCmd != nil {
+		t.Error("the turn must not have run at all")
+	}
+}
+
+// A gateway that answers but offers no aurium_exec leaves the agent with no
+// way to run anything, since its own shell is denied. A check that only
+// pinged the endpoint would pass here; this one asks for the tool.
+func TestConverseHostPlacementFailsWhenTheGatewayOffersNoExecTool(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	hostPlaced(t, m, a.ID, &fakeGateway{tools: []string{"aurium_context_query"}})
+
+	err := m.Converse(context.Background(), a.ID, "hello")
+	if err == nil {
+		t.Fatal("a gateway with no aurium_exec must fail the turn")
+	}
+	if !strings.Contains(err.Error(), "aurium_exec") {
+		t.Errorf("the error must name the missing tool: %v", err)
+	}
+}
+
+// In-container placement must never pay for any of this: no preflight, no
+// gateway, no new dependency on a daemon being up.
+func TestConverseInContainerPlacementNeverPreflightsAGateway(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	gw := &fakeGateway{tools: []string{"aurium_exec"}}
+	srv := gw.start(t)
+	m.HostAuriumURL = srv.URL
+
+	if err := m.Converse(context.Background(), a.ID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if gw.calls != 0 {
+		t.Errorf("in-container placement must not call the gateway, got %d calls", gw.calls)
+	}
+}
+
+// Before host placement a chat turn never read aurium.yaml at all. A project
+// with no config — a moved root, a deleted file — must therefore keep
+// answering exactly as it did, rather than breaking because a setting it
+// never asked for cannot be resolved.
+func TestConverseTreatsAMissingConfigAsInContainer(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	m.Config = func(context.Context, string) (*config.Config, error) {
+		// Exactly what config.Load returns for a file that is not there.
+		return nil, fmt.Errorf("config: %w", os.ErrNotExist)
+	}
+
+	if err := m.Converse(context.Background(), a.ID, "hello"); err != nil {
+		t.Fatalf("a missing aurium.yaml must not break a turn: %v", err)
+	}
+	if ad.lastOpts.HostSandboxed {
+		t.Error("a missing config must resolve to in-container")
+	}
+	msgs := transcript(t, m, a.ID)
+	if len(msgs) != 1 || msgs[0].Type != ipc.TypeResponse {
+		t.Fatalf("the turn must have answered normally, got %+v", msgs)
+	}
+}
+
+// A config that EXISTS but cannot be parsed is a different thing: it may well
+// say agent_placement: host, and guessing in-container would put an agent
+// somewhere the project did not ask for.
+func TestConverseStillFailsOnAnUnparseableConfig(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	m.Config = func(context.Context, string) (*config.Config, error) {
+		return nil, fmt.Errorf("config: /r/aurium.yaml: yaml: line 4: did not find expected key")
+	}
+
+	if err := m.Converse(context.Background(), a.ID, "hello"); err == nil {
+		t.Fatal("a broken config must still fail the turn")
+	}
+	if ad.lastCmd != nil {
+		t.Error("the turn must not have run at all")
 	}
 }
 

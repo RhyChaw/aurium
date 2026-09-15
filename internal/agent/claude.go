@@ -1,6 +1,22 @@
 package agent
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/RhyChaw/aurium/internal/gateway"
+)
+
+// hostAllowedTool is the one MCP tool a host-sandboxed turn may call. Claude
+// Code namespaces an MCP tool as mcp__<server key>__<the server's own tool
+// name, verbatim> — confirmed empirically against a real `claude -p` run
+// (see documents/superpowers/plans/2026-09-08-aurium-phases-abc.md's task-6
+// report): the server key is "aurium" (mcpServerJSON's and
+// writeHostMCPConfig's key, below), and the tool name is gateway's own
+// AuriumExecTool, not a shortened or prefix-stripped form of it. Built from
+// that constant, rather than typed out a second time, so this cannot drift
+// from the name the gateway actually dispatches on the way "mcp__aurium__exec"
+// once did.
+const hostAllowedTool = "mcp__aurium__" + gateway.AuriumExecTool
 
 // Claude adapts Anthropic's Claude Code CLI.
 //
@@ -49,6 +65,22 @@ func (c *Claude) Prepare(p Projection) error {
 		mcpServerJSON(p.MCPCommand, p.AuriumURL)); err != nil {
 		return fmt.Errorf("agent/claude: write .claude.json: %w", err)
 	}
+
+	if p.HostSandboxed {
+		// The host placement notice is deliberately NOT written here. It used
+		// to be appended to the file above, under the CONTAINER's $HOME — a
+		// path a host process never reads, since runHost launches it with the
+		// developer's environment and nothing sets HOME. It travels in argv
+		// now instead (HeadlessCommand's --append-system-prompt), which is the
+		// only channel a host turn actually has.
+		//
+		// HeadlessCommand points --mcp-config at exactly this file
+		// (agent.MCPConfigPath); without writing it, a host-sandboxed turn's
+		// only tool is missing and it has no shell to fall back to either.
+		if err := writeHostMCPConfig(p); err != nil {
+			return fmt.Errorf("agent/claude: write host mcp config: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -72,6 +104,41 @@ func (c *Claude) HeadlessCommand(prompt string, o ExecOpts) []string {
 		// documented as resuming the most recent conversation in the working
 		// directory, which is per-container because the worktree is.
 		args = append(args, "--continue")
+	}
+	if o.HostSandboxed {
+		// Verified by spike before this was designed: the agent uses the MCP
+		// tool unprompted once its own shell is gone, and degrades gracefully
+		// rather than failing when no alternative exists at all.
+		args = append(args,
+			"--disallowedTools", "Bash",
+			"--allowedTools", hostAllowedTool,
+			"--mcp-config", o.MCPConfigPath,
+			// Without this --mcp-config is ADDITIVE: the host process would
+			// also load the developer's user-scope MCP servers and any
+			// .mcp.json sitting in the worktree. mcpServerJSON states the
+			// invariant it would break — exactly one server is registered
+			// (D16), because otherwise an agent reaches upstreams without
+			// passing the gateway's grant checks (§10.1). Verified against
+			// the CLI: "--strict-mcp-config  Only use MCP servers from
+			// --mcp-config, ignoring all other MCP configurations".
+			"--strict-mcp-config",
+			// The container's ~/.claude/CLAUDE.md reaches this process
+			// nowhere (see Prepare), so the notice and the context
+			// projection are delivered here, where the process cannot miss
+			// them.
+			"--append-system-prompt", hostSystemPrompt(o.ProjectContext),
+			// And rendered fresh on every turn, not once per conversation.
+			// The in-container path's @-import gives §8.5 its defining
+			// property: the daemon regenerating CONTEXT.md updates the
+			// agent's instructions without restarting it. Delivered in argv
+			// that property is not free — the CLI documents
+			// --system-prompt-snapshot's default as recording the prompt on
+			// a conversation's FIRST request and resending that record "as
+			// is, even when a later launch passes different text". Every
+			// turn after the first is a --continue, so without this the
+			// projection would freeze at whatever it said when the
+			// conversation began.
+			"--system-prompt-snapshot", "off")
 	}
 	args = append(args, "-p", prompt, "--output-format", "json")
 	if o.Model != "" {

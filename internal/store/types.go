@@ -150,6 +150,20 @@ type Snapshot struct {
 	ContextVersion int    `json:"context_version"`
 	Bytes          int64  `json:"bytes"`
 	CreatedAt      string `json:"created_at"`
+	// IncludesConversation is false when the agent ran under
+	// agent_placement: host: its transcript lives in ~/.claude on the host
+	// machine, outside the rootfs this snapshot captured, so restoring this
+	// snapshot does not bring the conversation back. True for in-container
+	// placement, where the transcript lives in $HOME inside the captured
+	// rootfs and `--continue` resumes it. Source, rootfs and volumes are
+	// captured identically either way; this field is the only place that
+	// distinction is recorded, because Caps is per-driver and placement is
+	// not a driver.
+	IncludesConversation bool `json:"includes_conversation"`
+	// Note explains IncludesConversation when it is false, so a restore
+	// tells the user what they are getting instead of surprising them with
+	// a fresh conversation they believed they had resumed.
+	Note string `json:"note,omitempty"`
 }
 
 // Agent is one agent process in a container. D15: one interactive agent per
