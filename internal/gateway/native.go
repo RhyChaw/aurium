@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/RhyChaw/aurium/internal/contextengine"
+	"github.com/RhyChaw/aurium/internal/events"
 	"github.com/RhyChaw/aurium/internal/ipc"
 	"github.com/RhyChaw/aurium/internal/mcp"
 	"github.com/RhyChaw/aurium/internal/store"
@@ -441,11 +442,35 @@ func (g *Gateway) callNative(ctx context.Context, caller Caller, name string, ra
 			return mcp.ErrorResult("command is required"), nil
 		}
 		out, code, err := g.Executor.ExecInContainer(ctx, caller.ContainerID, command)
+
+		// Every command is recorded, whether it succeeded or failed — a
+		// command that failed is often the more interesting one, and an
+		// audit trail with only successes in it is not an audit trail. This
+		// recording is the actual safeguard here, not ClassifyRisk: a shell
+		// string like "rm -rf /" splits into the identifiers "rm" and "rf",
+		// neither of which is a word in highVerbs (which has "remove"), so
+		// risk classification would call the most destructive command a
+		// user can type low risk. That would be worse than no gate, because
+		// it looks like one.
+		if g.Events != nil {
+			status := "ok"
+			if err != nil {
+				status = "error"
+			}
+			payload := map[string]any{"command": command, "exit_code": code, "status": status}
+			if err != nil {
+				payload["error"] = err.Error()
+			}
+			_ = g.Events.Emit(ctx, events.Event{
+				Type: events.AgentExecuted, Actor: callerActor(caller),
+				ProjectID: caller.ProjectID, ContainerID: caller.ContainerID, AgentID: caller.AgentID,
+				Payload: payload,
+			})
+		}
+
 		if err != nil {
 			return mcp.ErrorResult("exec failed: %v", err), nil
 		}
-		// Every command is recorded. This is already more than Bash inside a
-		// container ever was, where Aurium saw nothing at all.
 		return mcp.JSONResult(map[string]any{"stdout": out, "exit_code": code}), nil
 	}
 

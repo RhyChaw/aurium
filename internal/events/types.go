@@ -34,6 +34,7 @@ const (
 	AgentMessageSent      = "agent.message.sent"
 	AgentMessageDelivered = "agent.message.delivered"
 	AgentMessageAcked     = "agent.message.acked"
+	AgentExecuted         = "agent.executed"
 
 	ContextUpdated         = "context.updated"
 	ContextProposed        = "context.proposed"

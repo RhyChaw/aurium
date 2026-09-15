@@ -3,8 +3,11 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/RhyChaw/aurium/internal/events"
 )
 
 // fakeExecutor stands in for the runtime's container exec, the same way
@@ -14,6 +17,15 @@ type fakeExecutor struct{ got string }
 func (f *fakeExecutor) ExecInContainer(ctx context.Context, containerID, command string) (string, int, error) {
 	f.got = command
 	return "ok\n", 0, nil
+}
+
+// fakeFailingExecutor always fails, so tests can assert a failed command is
+// recorded too — an audit trail with only successes in it is not one.
+type fakeFailingExecutor struct{ got string }
+
+func (f *fakeFailingExecutor) ExecInContainer(ctx context.Context, containerID, command string) (string, int, error) {
+	f.got = command
+	return "", 1, errors.New("boom")
 }
 
 func TestAuriumExecRunsInTheCallersContainer(t *testing.T) {
@@ -52,5 +64,64 @@ func TestAuriumExecWithoutAnExecutorSaysSo(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(res.Content[0].Text), "not available") {
 		t.Errorf("want an explicit unavailable result, got %v", res)
+	}
+}
+
+// aurium_exec deliberately skips ClassifyRisk-based gating (a shell string
+// like "rm -rf /" splits into the identifiers "rm" and "rf", neither of
+// which matches a highVerbs word, so it would be misclassified as low risk).
+// Recording every call is the actual safeguard, so nothing may quietly drop
+// it.
+func TestAuriumExecEmitsAnAuditEvent(t *testing.T) {
+	f := newGateway(t)
+	ctx := context.Background()
+	f.g.Executor = &fakeExecutor{}
+
+	_, rpcErr := f.g.CallTool(ctx, f.caller(f.aMaster, f.cA), "aurium_exec",
+		json.RawMessage(`{"command":"go test ./..."}`))
+	if rpcErr != nil {
+		t.Fatal(rpcErr)
+	}
+
+	evs, err := f.g.Events.Replay(ctx, 0, events.Filter{Types: []string{events.AgentExecuted}}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 1 {
+		t.Fatalf("want one agent.executed event, got %d", len(evs))
+	}
+	if evs[0].Payload["command"] != "go test ./..." {
+		t.Errorf("command not recorded in the event: %+v", evs[0].Payload)
+	}
+	if evs[0].Payload["status"] != "ok" {
+		t.Errorf("successful command should be recorded as ok, got %+v", evs[0].Payload)
+	}
+}
+
+// A command that fails is often the more interesting one, so it must be
+// recorded too, not just successes.
+func TestAuriumExecRecordsAFailedCommandToo(t *testing.T) {
+	f := newGateway(t)
+	ctx := context.Background()
+	f.g.Executor = &fakeFailingExecutor{}
+
+	_, rpcErr := f.g.CallTool(ctx, f.caller(f.aMaster, f.cA), "aurium_exec",
+		json.RawMessage(`{"command":"rm -rf /"}`))
+	if rpcErr != nil {
+		t.Fatal(rpcErr)
+	}
+
+	evs, err := f.g.Events.Replay(ctx, 0, events.Filter{Types: []string{events.AgentExecuted}}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 1 {
+		t.Fatalf("want one agent.executed event for the failed call, got %d", len(evs))
+	}
+	if evs[0].Payload["command"] != "rm -rf /" {
+		t.Errorf("command not recorded in the event: %+v", evs[0].Payload)
+	}
+	if evs[0].Payload["status"] != "error" {
+		t.Errorf("failed command should be recorded with status error, got %+v", evs[0].Payload)
 	}
 }
