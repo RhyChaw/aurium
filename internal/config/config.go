@@ -21,6 +21,19 @@ const Filename = "aurium.yaml"
 // SchemaVersion is the only version this build understands.
 const SchemaVersion = 1
 
+// Agent placement decides where the agent's own process runs. It is not the
+// driver: the container is unchanged either way, and still runs the agent's
+// commands. Only the process that talks to the model moves.
+const (
+	// PlacementInContainer runs the agent inside its container, as Aurium
+	// always has. The container must then be sized for a working agent.
+	PlacementInContainer = "in-container"
+	// PlacementHost runs the agent on this machine, at roughly a fifth of the
+	// memory, with its shell denied and its commands routed back into the
+	// container through aurium_exec.
+	PlacementHost = "host"
+)
+
 // Config is the whole of aurium.yaml.
 type Config struct {
 	Version      int                    `yaml:"version"`
@@ -48,6 +61,7 @@ type Sandbox struct {
 	Driver           string             `yaml:"driver"`
 	Image            string             `yaml:"image"`
 	Agent            string             `yaml:"agent"`
+	AgentPlacement   string             `yaml:"agent_placement"`
 	Resources        Resources          `yaml:"resources"`
 	IdlePauseMinutes int                `yaml:"idle_pause_minutes"`
 	Ports            []Port             `yaml:"ports"`
@@ -179,19 +193,22 @@ func Parse(body []byte) (*Config, error) {
 		return nil, err
 	}
 
-	c.applyDefaults()
-	if err := c.validate(); err != nil {
+	c.Normalize()
+	if err := c.Validate(); err != nil {
 		return nil, err
 	}
 	return &c, nil
 }
 
-func (c *Config) applyDefaults() {
+func (c *Config) Normalize() {
 	if c.Sandbox.Driver == "" {
 		c.Sandbox.Driver = "docker" // D2
 	}
 	if c.Sandbox.Agent == "" {
 		c.Sandbox.Agent = "claude"
+	}
+	if c.Sandbox.AgentPlacement == "" {
+		c.Sandbox.AgentPlacement = PlacementInContainer
 	}
 	if c.Sandbox.IdlePauseMinutes == 0 {
 		c.Sandbox.IdlePauseMinutes = 15
@@ -217,7 +234,7 @@ func (c *Config) applyDefaults() {
 	}
 }
 
-func (c *Config) validate() error {
+func (c *Config) Validate() error {
 	if c.Version != SchemaVersion {
 		return fmt.Errorf("version %d is not supported (this build understands version %d)",
 			c.Version, SchemaVersion)
@@ -233,6 +250,12 @@ func (c *Config) validate() error {
 	}
 	if !slices.Contains(KnownAdapters, c.Sandbox.Agent) {
 		return fmt.Errorf("sandbox.agent %q is unknown (want one of %v)", c.Sandbox.Agent, KnownAdapters)
+	}
+	switch c.Sandbox.AgentPlacement {
+	case PlacementInContainer, PlacementHost:
+	default:
+		return fmt.Errorf("config: sandbox.agent_placement is %q; it must be %q or %q",
+			c.Sandbox.AgentPlacement, PlacementInContainer, PlacementHost)
 	}
 
 	// A volume declared both per-sandbox and shared is ambiguous: fork would
