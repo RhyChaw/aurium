@@ -23,12 +23,22 @@ const (
 	ScopeSnapshotSelf = "snapshot:self"
 	ScopeGatewayAll   = "gateway:*"
 	ScopeAdmin        = "admin:*"
+	// ScopeExecSelf is arbitrary shell in the caller's own container
+	// (aurium_exec). It is a scope of its own, and deliberately not covered by
+	// gateway:* — that scope is what lets a caller reach the MCP endpoint at
+	// all, and folding code execution into it would mean every token that can
+	// read context can also run commands. Host placement makes this the most
+	// powerful tool in the gateway: it is where ALL of a host-placed agent's
+	// project commands go.
+	ScopeExecSelf = "exec:self"
 )
 
 // DefaultContainerScopes is what an ordinary container agent gets. Note what
-// is absent: no admin, and snapshot is limited to the container's own state.
+// is absent: no admin, and snapshot and exec are limited to the container's
+// own state.
 var DefaultContainerScopes = []string{
 	ScopeContextAll, ScopeIPCAll, ScopeTaskAll, ScopeSnapshotSelf, ScopeGatewayAll,
+	ScopeExecSelf,
 }
 
 // TokenInfo is an authenticated token.

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/RhyChaw/aurium/internal/contextengine"
+	"github.com/RhyChaw/aurium/internal/events"
 	"github.com/RhyChaw/aurium/internal/ipc"
 	"github.com/RhyChaw/aurium/internal/mcp"
 	"github.com/RhyChaw/aurium/internal/store"
@@ -20,6 +21,13 @@ func obj(props map[string]any, required ...string) map[string]any {
 	}
 	return schema
 }
+
+// AuriumExecTool is the name the gateway advertises its shell-exec tool
+// under. It is exported so a Claude Code client can build the namespaced
+// --allowedTools string (mcp__<server key>__<this>) from the same literal
+// the gateway itself dispatches on, rather than typing a second copy that
+// can silently drift — see agent.hostAllowedTool.
+const AuriumExecTool = "aurium_exec"
 
 func str(desc string) map[string]any { return map[string]any{"type": "string", "description": desc} }
 func num(desc string) map[string]any { return map[string]any{"type": "integer", "description": desc} }
@@ -157,6 +165,16 @@ func (g *Gateway) nativeTools(caller Caller) []mcp.Tool {
 				"action": str("exactly what you intend to do"),
 				"reason": str("why it is necessary"),
 			}, "action", "reason"),
+		},
+		{
+			Name: AuriumExecTool,
+			Description: "Run a shell command inside this agent's container. Under host " +
+				"placement the agent's own shell is unavailable, and this is where all " +
+				"project commands run — the container has the project's toolchain, the " +
+				"host does not.",
+			InputSchema: obj(map[string]any{
+				"command": str("the shell command to run"),
+			}, "command"),
 		},
 	}
 
@@ -421,6 +439,53 @@ func (g *Gateway) callNative(ctx context.Context, caller Caller, name string, ra
 			return mcp.ErrorResult("%v", err), nil
 		}
 		return mcp.JSONResult(res), nil
+
+	case AuriumExecTool:
+		// The most powerful tool here — arbitrary shell in the caller's
+		// container — and so the one that must be scoped most explicitly.
+		// Every neighbouring tool gates on a scope; without this one a token
+		// minted with nothing but context:read would carry code execution.
+		if !caller.Token.Has(store.ScopeExecSelf) && !caller.Human {
+			return deniedScope(store.ScopeExecSelf)
+		}
+		if g.Executor == nil {
+			return mcp.ErrorResult(AuriumExecTool + " is not available in this configuration"), nil
+		}
+		command := argStr(args, "command")
+		if strings.TrimSpace(command) == "" {
+			return mcp.ErrorResult("command is required"), nil
+		}
+		out, code, err := g.Executor.ExecInContainer(ctx, caller.ContainerID, command)
+
+		// Every command is recorded, whether it succeeded or failed — a
+		// command that failed is often the more interesting one, and an
+		// audit trail with only successes in it is not an audit trail. This
+		// recording is the actual safeguard here, not ClassifyRisk: a shell
+		// string like "rm -rf /" splits into the identifiers "rm" and "rf",
+		// neither of which is a word in highVerbs (which has "remove"), so
+		// risk classification would call the most destructive command a
+		// user can type low risk. That would be worse than no gate, because
+		// it looks like one.
+		if g.Events != nil {
+			status := "ok"
+			if err != nil {
+				status = "error"
+			}
+			payload := map[string]any{"command": command, "exit_code": code, "status": status}
+			if err != nil {
+				payload["error"] = err.Error()
+			}
+			_ = g.Events.Emit(ctx, events.Event{
+				Type: events.AgentExecuted, Actor: callerActor(caller),
+				ProjectID: caller.ProjectID, ContainerID: caller.ContainerID, AgentID: caller.AgentID,
+				Payload: payload,
+			})
+		}
+
+		if err != nil {
+			return mcp.ErrorResult("exec failed: %v", err), nil
+		}
+		return mcp.JSONResult(map[string]any{"stdout": out, "exit_code": code}), nil
 	}
 
 	return nil, mcp.Errorf(mcp.CodeMethodNotFound, "unknown tool %q", name)

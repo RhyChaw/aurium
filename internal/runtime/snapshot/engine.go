@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/RhyChaw/aurium/internal/config"
 	"github.com/RhyChaw/aurium/internal/events"
 	"github.com/RhyChaw/aurium/internal/gitx"
 	"github.com/RhyChaw/aurium/internal/ids"
@@ -38,6 +39,14 @@ type TakeOpts struct {
 	ContextVersion int
 	// EnvHash digests the sandbox config so restore can warn on drift.
 	EnvHash string
+	// Placement is the sandbox's agent_placement at the moment of capture
+	// (config.PlacementInContainer or config.PlacementHost). It decides
+	// whether this snapshot's rootfs still holds the agent's conversation:
+	// under host placement the transcript lives in ~/.claude on the host
+	// machine, outside anything captured here. Empty is treated as
+	// config.PlacementInContainer, which is every placement that existed
+	// before this field did.
+	Placement string
 }
 
 // Take captures a container's state (§6.2).
@@ -165,11 +174,30 @@ func Take(ctx context.Context, d Deps, containerID string, o TakeOpts) (store.Sn
 		return store.Snapshot{}, err
 	}
 
+	// The transcript lives in $HOME inside the rootfs under in-container
+	// placement, so docker commit captures it and --continue resumes. Under
+	// host placement it lives in ~/.claude on the machine, outside the
+	// rootfs: source, rootfs and volumes are still captured exactly, and the
+	// conversation is not. Recording that is the difference between a
+	// restore that surprises someone and one that tells them what they are
+	// getting.
+	placement := o.Placement
+	if placement == "" {
+		placement = config.PlacementInContainer
+	}
+	includesConversation := placement != config.PlacementHost
+	var note string
+	if !includesConversation {
+		note = "conversation not captured: the agent runs on the host under " +
+			"agent_placement: host, so its transcript is outside the container rootfs"
+	}
+
 	rec, err := d.Store.CreateSnapshot(ctx, store.Snapshot{
 		ID: snapID, ContainerID: containerID, Seq: seq, Label: o.Label, Trigger: o.Trigger,
 		HeadSHA: head, TreeRef: TreeRef(containerID, seq), BaseSHA: c.BaseSHA,
 		ImageRef: rootfs.Image, ManifestPath: filepath.Join(dir, "manifest.json"),
 		ContextVersion: o.ContextVersion, Bytes: totalBytes,
+		IncludesConversation: includesConversation, Note: note,
 	})
 	if err != nil {
 		return store.Snapshot{}, err
@@ -181,6 +209,7 @@ func Take(ctx context.Context, d Deps, containerID string, o TakeOpts) (store.Sn
 		Payload: map[string]any{
 			"snapshot": snapID, "seq": seq, "label": o.Label, "trigger": o.Trigger,
 			"rootfs_captured": rootfs.Captured, "bytes": totalBytes,
+			"includes_conversation": includesConversation,
 		},
 	})
 	return rec, err

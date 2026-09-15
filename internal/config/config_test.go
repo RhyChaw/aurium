@@ -209,3 +209,36 @@ sandbox:
 		t.Fatal("a volume that is both per-sandbox and shared is ambiguous and must be rejected")
 	}
 }
+
+func TestAgentPlacementDefaultsToInContainer(t *testing.T) {
+	var c Config
+	c.Normalize()
+	if c.Sandbox.AgentPlacement != PlacementInContainer {
+		t.Fatalf("an unset placement must default to %q, got %q",
+			PlacementInContainer, c.Sandbox.AgentPlacement)
+	}
+}
+
+func TestAgentPlacementRejectsAnUnknownValue(t *testing.T) {
+	c := Config{
+		Version: 1,
+		Sandbox: Sandbox{AgentPlacement: "somewhere-else"},
+		Project: Project{Name: "test", BaseBranch: "main"},
+	}
+	c.Normalize()
+	if err := c.Validate(); err == nil {
+		t.Fatal("an unknown placement must be rejected, not silently accepted")
+	}
+}
+
+func TestAgentPlacementAcceptsHost(t *testing.T) {
+	c := Config{
+		Version: 1,
+		Sandbox: Sandbox{AgentPlacement: PlacementHost},
+		Project: Project{Name: "test", BaseBranch: "main"},
+	}
+	c.Normalize()
+	if err := c.Validate(); err != nil {
+		t.Fatalf("host is a valid placement: %v", err)
+	}
+}

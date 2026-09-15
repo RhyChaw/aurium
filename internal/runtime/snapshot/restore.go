@@ -20,14 +20,22 @@ type RestoreOpts struct {
 	Backup bool
 	// Volumes are the per-container volumes to recreate.
 	Volumes []driver.VolumeMount
+	// Placement is the current agent_placement, forwarded to the pre-restore
+	// backup snapshot so it is exactly as honest about the conversation as
+	// any other snapshot (see TakeOpts.Placement).
+	Placement string
 }
 
 // Restore returns a container to a previous snapshot (§6.3).
 //
 // It restores source, rootfs and volumes — everything a snapshot captured.
 // It does not restore processes, because a snapshot never captured them
-// (D14); the agent is restarted with its resume hint instead, which works
-// because the transcript lives in $HOME inside the captured rootfs.
+// (D14); the agent is restarted with its resume hint instead. Under
+// in-container placement that resumes the real conversation, because the
+// transcript lives in $HOME inside the captured rootfs; under host
+// placement the transcript was never in the rootfs, so the resume hint
+// starts a fresh one — which is exactly what the restored snapshot's
+// IncludesConversation/Note say in advance.
 func Restore(ctx context.Context, d Deps, containerID string, seq int, o RestoreOpts) error {
 	c, err := d.Store.GetContainer(ctx, containerID)
 	if err != nil {
@@ -53,7 +61,7 @@ func Restore(ctx context.Context, d Deps, containerID string, seq int, o Restore
 	// 1. Make the current state recoverable before destroying it.
 	if o.Backup {
 		if _, err := Take(ctx, d, containerID, TakeOpts{
-			Trigger: TriggerPreRestore, Volumes: o.Volumes,
+			Trigger: TriggerPreRestore, Volumes: o.Volumes, Placement: o.Placement,
 		}); err != nil {
 			return fmt.Errorf("snapshot: pre-restore backup failed, refusing to restore: %w", err)
 		}
