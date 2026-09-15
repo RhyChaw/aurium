@@ -4,33 +4,54 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Aurium</title>
+<link rel="icon" type="image/svg+xml" href="/logo-square.svg">
 <link rel="stylesheet" href="/style.css">
+<!-- v2 is an overlay: it restyles classes style.css already defines, so it
+     must load second. Removing this line returns the dashboard to v1. -->
+<link rel="stylesheet" href="/aurium-v2.css">
 </head>
 <body>
-<header>
-  <h1>Aurium</h1>
-  <div class="meta">
-    <span id="project-name">—</span>
-    <span class="sep">·</span>
-    <span id="conn" class="conn conn-connecting">connecting</span>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="wordmark"><img src="/logo.svg" alt=""><span>Aurium</span></div>
+
+    <nav id="tabs" class="side-nav"></nav>
+
+    <div class="side-group">
+      <h2>Projects</h2>
+      <div id="side-projects"></div>
+    </div>
+
+    <div class="side-foot">
+      <button id="theme" class="mini" type="button" title="Light, dark, or follow the system">system</button>
+    </div>
+  </aside>
+
+  <div class="pane">
+    <header>
+      <h1>Aurium</h1>
+      <div class="meta">
+        <span id="project-name">—</span>
+      </div>
+      <!-- The connection pill stays in the header: aurium-v2.css scopes
+           .pill-live and .pill-attn to `header`, so it is unstyled anywhere else. -->
+      <span id="conn" class="pill-attn">connecting</span>
+    </header>
+
+    <!-- A live region: the result of an action must reach a screen reader too. -->
+    <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
+
+    <main id="panel" data-panel=""></main>
+
+    <p class="hint-bar">
+      <span><kbd>1</kbd>–<kbd>6</kbd> panels</span>
+      <span><kbd>a</kbd> approve top</span>
+      <span><kbd>x</kbd> reject top</span>
+      <span><kbd>j</kbd>/<kbd>k</kbd> agents</span>
+      <span><kbd>r</kbd> refresh</span>
+    </p>
   </div>
-  <button id="theme" class="mini" type="button" title="Light, dark, or follow the system">system</button>
-</header>
-
-<nav id="tabs"></nav>
-
-<!-- A live region: the result of an action must reach a screen reader too. -->
-<p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
-
-<main id="panel" data-panel=""></main>
-
-<p class="hint-bar">
-  <span><kbd>1</kbd>–<kbd>6</kbd> panels</span>
-  <span><kbd>a</kbd> approve top</span>
-  <span><kbd>x</kbd> reject top</span>
-  <span><kbd>j</kbd>/<kbd>k</kbd> agents</span>
-  <span><kbd>r</kbd> refresh</span>
-</p>
+</div>
 
 <!-- Modules, loaded natively. No bundler, so `make build` needs only Go. -->
 <script type="module" src="/app.js"></script>
