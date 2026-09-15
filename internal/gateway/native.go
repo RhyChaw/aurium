@@ -22,6 +22,13 @@ func obj(props map[string]any, required ...string) map[string]any {
 	return schema
 }
 
+// AuriumExecTool is the name the gateway advertises its shell-exec tool
+// under. It is exported so a Claude Code client can build the namespaced
+// --allowedTools string (mcp__<server key>__<this>) from the same literal
+// the gateway itself dispatches on, rather than typing a second copy that
+// can silently drift — see agent.hostAllowedTool.
+const AuriumExecTool = "aurium_exec"
+
 func str(desc string) map[string]any { return map[string]any{"type": "string", "description": desc} }
 func num(desc string) map[string]any { return map[string]any{"type": "integer", "description": desc} }
 func arr(desc string) map[string]any {
@@ -160,7 +167,7 @@ func (g *Gateway) nativeTools(caller Caller) []mcp.Tool {
 			}, "action", "reason"),
 		},
 		{
-			Name: "aurium_exec",
+			Name: AuriumExecTool,
 			Description: "Run a shell command inside this agent's container. Under host " +
 				"placement the agent's own shell is unavailable, and this is where all " +
 				"project commands run — the container has the project's toolchain, the " +
@@ -433,7 +440,7 @@ func (g *Gateway) callNative(ctx context.Context, caller Caller, name string, ra
 		}
 		return mcp.JSONResult(res), nil
 
-	case "aurium_exec":
+	case AuriumExecTool:
 		// The most powerful tool here — arbitrary shell in the caller's
 		// container — and so the one that must be scoped most explicitly.
 		// Every neighbouring tool gates on a scope; without this one a token
@@ -442,7 +449,7 @@ func (g *Gateway) callNative(ctx context.Context, caller Caller, name string, ra
 			return deniedScope(store.ScopeExecSelf)
 		}
 		if g.Executor == nil {
-			return mcp.ErrorResult("aurium_exec is not available in this configuration"), nil
+			return mcp.ErrorResult(AuriumExecTool + " is not available in this configuration"), nil
 		}
 		command := argStr(args, "command")
 		if strings.TrimSpace(command) == "" {

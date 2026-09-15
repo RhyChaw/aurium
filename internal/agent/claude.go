@@ -1,6 +1,22 @@
 package agent
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/RhyChaw/aurium/internal/gateway"
+)
+
+// hostAllowedTool is the one MCP tool a host-sandboxed turn may call. Claude
+// Code namespaces an MCP tool as mcp__<server key>__<the server's own tool
+// name, verbatim> — confirmed empirically against a real `claude -p` run
+// (see documents/superpowers/plans/2026-09-08-aurium-phases-abc.md's task-6
+// report): the server key is "aurium" (mcpServerJSON's and
+// writeHostMCPConfig's key, below), and the tool name is gateway's own
+// AuriumExecTool, not a shortened or prefix-stripped form of it. Built from
+// that constant, rather than typed out a second time, so this cannot drift
+// from the name the gateway actually dispatches on the way "mcp__aurium__exec"
+// once did.
+const hostAllowedTool = "mcp__aurium__" + gateway.AuriumExecTool
 
 // Claude adapts Anthropic's Claude Code CLI.
 //
@@ -95,7 +111,7 @@ func (c *Claude) HeadlessCommand(prompt string, o ExecOpts) []string {
 		// rather than failing when no alternative exists at all.
 		args = append(args,
 			"--disallowedTools", "Bash",
-			"--allowedTools", "mcp__aurium__exec",
+			"--allowedTools", hostAllowedTool,
 			"--mcp-config", o.MCPConfigPath,
 			// Without this --mcp-config is ADDITIVE: the host process would
 			// also load the developer's user-scope MCP servers and any

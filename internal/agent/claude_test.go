@@ -7,8 +7,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/RhyChaw/aurium/internal/gateway"
 )
 
+// TestHeadlessCommandDeniesTheShellUnderHostPlacement asserts the allowlist
+// entry against gateway.AuriumExecTool, the gateway's own declared tool name,
+// rather than a second hand-typed copy of "aurium_exec" — two independently
+// typed copies of the same string can drift apart (and did: the flag used to
+// read "mcp__aurium__exec", naming a tool that does not exist) without any
+// test noticing, since a mismatched --allowedTools value fails silently
+// (is_error: false, no permission_denials) rather than erroring.
 func TestHeadlessCommandDeniesTheShellUnderHostPlacement(t *testing.T) {
 	c := &Claude{}
 	argv := c.HeadlessCommand("do the thing", ExecOpts{
@@ -17,7 +26,7 @@ func TestHeadlessCommandDeniesTheShellUnderHostPlacement(t *testing.T) {
 	joined := strings.Join(argv, " ")
 	for _, want := range []string{
 		"--disallowedTools Bash",
-		"--allowedTools mcp__aurium__exec",
+		"--allowedTools mcp__aurium__" + gateway.AuriumExecTool,
 		"--mcp-config /tmp/mcp.json",
 	} {
 		if !strings.Contains(joined, want) {
