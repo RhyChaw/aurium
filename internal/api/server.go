@@ -127,6 +127,9 @@ func (s *Server) routes() {
 	s.handle("GET /v1/usage", s.usageReport, "")
 	s.handle("GET /v1/usage/series", s.usageSeries, "")
 	s.handle("GET /v1/heartbeat", s.heartbeat, "")
+	// The same check table `aurium doctor` renders, for the dashboard's
+	// setup wizard.
+	s.handle("GET /v1/preflight", s.preflight, "")
 
 	// The MCP endpoint every container reaches through the aurium-mcp shim.
 	s.handle("POST /mcp", s.handleMCP, "gateway:*")

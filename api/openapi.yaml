@@ -791,6 +791,17 @@ paths:
       responses:
         "200": { description: OK }
 
+  /v1/preflight:
+    get:
+      summary: Whether this machine can run Aurium
+      description: |
+        The same check table `aurium doctor` renders, so the dashboard's
+        setup wizard never develops a second opinion about what Aurium
+        needs. Always called with no port to check: if the caller reached
+        this route, the daemon's own port is necessarily held.
+      responses:
+        "200": { description: The preflight check table }
+
   /mcp:
     post:
       summary: MCP endpoint reached by the in-container aurium-mcp shim

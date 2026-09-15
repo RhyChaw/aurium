@@ -1,0 +1,21 @@
+package api
+
+import (
+	"net/http"
+
+	"github.com/RhyChaw/aurium/internal/app"
+	"github.com/RhyChaw/aurium/internal/preflight"
+)
+
+// preflight serves the same check table `aurium doctor` renders, so the
+// dashboard's setup wizard never develops a second opinion about what
+// Aurium needs.
+func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
+	home, _ := app.Home()
+	// An empty addr omits the port check: over HTTP a port check is
+	// meaningless, because if a caller reached this route the port is
+	// necessarily held — by the very daemon answering the request.
+	// Reporting that as a failure would report success as a problem.
+	results := preflight.Run(r.Context(), preflight.Checks(home, ""))
+	writeJSON(w, http.StatusOK, map[string]any{"checks": results})
+}
