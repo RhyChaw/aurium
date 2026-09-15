@@ -73,6 +73,15 @@ func (c *Claude) HeadlessCommand(prompt string, o ExecOpts) []string {
 		// directory, which is per-container because the worktree is.
 		args = append(args, "--continue")
 	}
+	if o.HostSandboxed {
+		// Verified by spike before this was designed: the agent uses the MCP
+		// tool unprompted once its own shell is gone, and degrades gracefully
+		// rather than failing when no alternative exists at all.
+		args = append(args,
+			"--disallowedTools", "Bash",
+			"--allowedTools", "mcp__aurium__exec",
+			"--mcp-config", o.MCPConfigPath)
+	}
 	args = append(args, "-p", prompt, "--output-format", "json")
 	if o.Model != "" {
 		args = append(args, "--model", o.Model)

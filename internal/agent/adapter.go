@@ -66,6 +66,14 @@ type ExecOpts struct {
 	// set it: there is no session to continue, and asking to continue nothing
 	// is an error rather than a fresh start.
 	Continue bool
+	// HostSandboxed says this turn runs on the host rather than in its
+	// container. The agent's own shell is denied and its commands go back into
+	// the container through aurium_exec, so the container remains the only place
+	// project commands run.
+	HostSandboxed bool
+	// MCPConfigPath points at the JSON naming the daemon's MCP endpoint. Only
+	// read when HostSandboxed.
+	MCPConfigPath string
 }
 
 // ExecResult is the outcome of a headless run.
