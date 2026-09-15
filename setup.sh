@@ -145,6 +145,23 @@ build_desktop() {
 	# released .dmg is built in CI where that problem does not arise.
 	( cd "${REPO_DIR}/desktop" && cargo tauri build ) || \
 		say "  note: bundling did not complete; the built app is under desktop/src-tauri/target/release/"
+
+	# Verify the signature rather than assume it. tauri.conf.json sets an
+	# ad-hoc signingIdentity, but a bundle that silently skipped signing is
+	# indistinguishable from a signed one until macOS refuses to open it --
+	# and then it says "Aurium is damaged", which sends people hunting for a
+	# corrupt download instead of a missing signature. v0.1.0 shipped that
+	# way. The check costs milliseconds; the alternative cost a release.
+	app="${REPO_DIR}/desktop/src-tauri/target/release/bundle/macos/Aurium.app"
+	if [ "$OS" = darwin ] && [ -d "$app" ]; then
+		if codesign --verify --deep --strict "$app" >/dev/null 2>&1; then
+			say "  signature verified (ad-hoc; macOS will still ask you to allow it once)"
+		else
+			say "  warning: the built app is not correctly signed. macOS will call it"
+			say "  damaged and refuse to open it. Sign it before copying it anywhere:"
+			say "    codesign --force --deep --sign - \"$app\""
+		fi
+	fi
 }
 
 detect_platform
