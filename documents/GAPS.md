@@ -81,7 +81,7 @@ control · §6.5 `--env` sync unproven · sidecars · podman parity ·
 
 These are not gaps; they are decisions taken beyond the RFC, recorded here so
 the two documents do not silently disagree. Their reasoning is in
-`docs/superpowers/specs/2026-09-14-agent-os-dashboard-design.md`.
+`documents/superpowers/specs/2026-09-14-agent-os-dashboard-design.md`.
 
 | | |
 |---|---|

@@ -15,7 +15,7 @@ import "fmt"
 //	~/.claude.json        mcpServers schema and location unconfirmed
 //	claude --continue     resume flag unconfirmed
 //
-// Tracked in docs/superpowers/plans/2026-09-08-aurium-phases-abc.md.
+// Tracked in documents/superpowers/plans/2026-09-08-aurium-phases-abc.md.
 type Claude struct{}
 
 func (c *Claude) Name() string { return "claude" }

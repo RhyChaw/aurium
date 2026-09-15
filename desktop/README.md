@@ -39,7 +39,7 @@ attention.
 ## What the window shows
 
 The daemon's dashboard, which as of 2026-09-14 is the workspace described in
-`docs/superpowers/specs/2026-09-14-agent-os-dashboard-design.md`: every
+`documents/superpowers/specs/2026-09-14-agent-os-dashboard-design.md`: every
 project's agents in a left rail with a colour per state, a live pulse of the
 fleet in the middle, and one agent's conversation on the right. Tabs alongside
 it cover approvals, spend, and the provider accounts agents run on.

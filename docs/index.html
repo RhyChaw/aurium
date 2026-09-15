@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurium · every coding agent you have, on one screen</title>
+<meta name="description" content="Aurium is an open source orchestration daemon for coding agents. Each agent runs in its own container on its own git worktree, so their trees never touch. MIT licensed, loopback only, macOS and Linux.">
+<link rel="icon" type="image/svg+xml" href="./logo-square.svg">
+<meta property="og:title" content="Aurium">
+<meta property="og:description" content="Every coding agent you have, on one screen. Open source agent orchestration.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#F7F4EE">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#F7F4EE; color:#16140F; font-family:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  a { color:#7A5510; text-decoration:none; border-bottom:1px solid rgba(122,85,16,.28); }
+  a:hover { color:#16140F; border-bottom-color:#16140F; }
+  @keyframes melt { 0% { background-position:50% 0%; } 100% { background-position:50% 200%; } }
+  @keyframes pour { 0% { background-position:50% 0%; } 100% { background-position:50% 300%; } }
+  @keyframes shimmer { 0% { background-position:0% 0; } 100% { background-position:200% 0; } }
+  @keyframes breathe { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+  @keyframes caret { 0%,49% { opacity:1; } 50%,100% { opacity:0; } }
+  @keyframes slide { 0% { transform:translateX(0); } 100% { transform:translateX(-50%); } }
+  @keyframes trace { 0% { transform:translateX(0); } 100% { transform:translateX(-1000px); } }
+  @keyframes dots { 0%,80%,100% { opacity:.22; } 40% { opacity:1; } }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#F7F4EE">
+
+  <!-- MASTHEAD -->
+  <div style="position:sticky;top:0;z-index:30;background:rgba(247,244,238,.9);backdrop-filter:blur(12px);border-bottom:1px solid #16140F">
+    <div style="max-width:1220px;margin:0 auto;padding:12px 32px;min-height:58px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <img src="logo.svg" alt="" style="width:30px;height:24px;image-rendering:pixelated;flex:0 0 auto">
+      <span style="font:400 23px/1 'Instrument Serif',serif;letter-spacing:.005em">Aurium</span>
+      <span style="font:500 9.5px/1 'IBM Plex Mono';letter-spacing:.18em;text-transform:uppercase;color:#5C574D;border-left:1px solid #CFC7B6;padding-left:15px">Agent orchestration · MIT</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:19px;flex-wrap:wrap">
+        <a href="#uses" style="font:500 12.5px/1 'IBM Plex Sans';color:#16140F;border:none">Use cases</a>
+        <a href="#approvals" style="font:500 12.5px/1 'IBM Plex Sans';color:#16140F;border:none">Approvals</a>
+        <a href="#how" style="font:500 12.5px/1 'IBM Plex Sans';color:#16140F;border:none">How</a>
+        <a href="https://github.com/RhyChaw/aurium" style="font:500 12px/1 'IBM Plex Mono';color:#16140F;border:1px solid #16140F;padding:8px 12px">GitHub</a>
+        <a href="#download" style="font:600 12px/1 'IBM Plex Sans';background:#16140F;color:#F7F4EE;padding:9px 15px;border:none">Download</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div style="position:relative;overflow:hidden;border-bottom:1px solid #16140F">
+    <div style="position:absolute;left:-14%;top:-40%;width:64%;height:140%;background:radial-gradient(closest-side,rgba(245,195,90,.28),rgba(245,195,90,0));pointer-events:none"></div>
+    <div style="position:relative;max-width:1220px;margin:0 auto;padding:70px 32px 0;display:flex;flex-direction:column;gap:32px">
+      <span style="font:500 10px/1 'IBM Plex Mono';letter-spacing:.26em;text-transform:uppercase;color:#7A5510">No. 01 · the fleet</span>
+
+      <h1 style="margin:0;font:400 clamp(48px,9vw,124px)/.9 'Instrument Serif',serif;letter-spacing:-.024em;max-width:14ch;text-wrap:pretty">Thirty agents.<br><em style="font-style:italic;background:linear-gradient(180deg,#8A6212 0%,#C68F2C 34%,#F5C35A 62%,#C68F2C 100%);background-size:100% 260%;animation:pour 12s ease-in-out infinite alternate;-webkit-background-clip:text;background-clip:text;color:transparent">One</em> screen.</h1>
+
+      <div style="height:1px;background:#16140F;max-width:200px"></div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:48px;align-items:start">
+        <p style="margin:0;max-width:50ch;font:400 18px/1.62 'IBM Plex Sans';color:#3A362D;text-wrap:pretty">Aurium is an orchestration daemon for coding agents. Each one runs in its own container, on its own git worktree, on its own branch, so their trees never touch. The window shows the whole fleet at once: what every agent is doing, what it costs, and which ones are sitting idle waiting on you.</p>
+
+        <div style="display:flex;flex-direction:column;gap:13px;min-width:0">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <a href="#download" style="display:inline-flex;align-items:center;gap:11px;font:600 14px/1 'IBM Plex Sans';background:#16140F;color:#F7F4EE;padding:17px 24px;border:none">Download for macOS<span style="font:400 11px 'IBM Plex Mono';color:#C68F2C">.dmg</span></a>
+            <a href="#download" style="display:inline-flex;align-items:center;gap:11px;font:600 14px/1 'IBM Plex Sans';color:#16140F;border:1px solid #16140F;padding:17px 24px">Download for Linux<span style="font:400 11px 'IBM Plex Mono';color:#7A5510">.AppImage</span></a>
+          </div>
+          <div style="display:flex;align-items:center;gap:11px;border:1px solid #CFC7B6;background:#FFFFFF;padding:13px 15px">
+            <span style="font:400 12.5px/1 'IBM Plex Mono';color:#7A5510">$</span>
+            <span style="font:400 12.5px/1 'IBM Plex Mono';color:#3A362D;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">brew install rhychaw/tap/aurium</span>
+            <span style="margin-left:auto;font:500 10px/1 'IBM Plex Mono';color:#5C574D;border:1px solid #CFC7B6;padding:5px 9px;flex:0 0 auto">copy</span>
+          </div>
+          <p style="margin:0;max-width:46ch;font:400 12.5px/1.62 'IBM Plex Sans';color:#5C574D;text-wrap:pretty">No Windows build yet. I have no Windows machine to test one on. <a href="https://github.com/RhyChaw/aurium/issues/new?labels=platform">Ask for one</a> and I'll cut it.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- MARQUEE -->
+    <div style="position:relative;margin-top:46px;border-top:1px solid #16140F;border-bottom:1px solid #16140F;background:#EFEADF;overflow:hidden;padding:12px 0">
+      <div style="display:flex;width:max-content;animation:slide 46s linear infinite">
+        <sc-for list="{{ marquee }}" as="m" hint-placeholder-count="24">
+          <span style="display:inline-flex;align-items:center;gap:9px;padding:0 17px;font:400 11.5px/1 'IBM Plex Mono';color:#5C574D;white-space:nowrap;border-right:1px solid #DCD5C6">
+            <i style="width:6px;height:6px;border-radius:50%;background:{{ m.color }};display:inline-block;flex:0 0 auto"></i>
+            <b style="font-weight:600;color:#16140F">{{ m.name }}</b>
+            <span>{{ m.branch }}</span>
+            <span style="color:{{ m.color }}">{{ m.state }}</span>
+          </span>
+        </sc-for>
+      </div>
+      <span style="position:absolute;left:0;top:0;bottom:0;width:110px;background:linear-gradient(90deg,#EFEADF,rgba(239,234,223,0));pointer-events:none"></span>
+      <span style="position:absolute;right:0;top:0;bottom:0;width:110px;background:linear-gradient(270deg,#EFEADF,rgba(239,234,223,0));pointer-events:none"></span>
+    </div>
+  </div>
+
+  <!-- 3D DISPLAY STAGE -->
+  <div style="position:relative;overflow:hidden;background:linear-gradient(180deg,#EFEADF 0%,#F7F4EE 62%);border-bottom:1px solid #16140F">
+
+    <div style="position:absolute;left:50%;top:-6%;width:1000px;height:560px;margin-left:-500px;background:radial-gradient(closest-side,rgba(245,195,90,.3),rgba(245,195,90,0));pointer-events:none"></div>
+
+    <div style="position:relative;max-width:1220px;margin:0 auto;padding:54px 32px 28px;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center">
+      <span style="font:500 10px/1 'IBM Plex Mono';letter-spacing:.26em;text-transform:uppercase;color:#7A5510">No. 02 · the window</span>
+      <h2 style="margin:0;font:400 clamp(28px,4.4vw,48px)/1.08 'Instrument Serif',serif;max-width:22ch;text-wrap:pretty">The whole fleet, beating, in one window</h2>
+      <p style="margin:0;max-width:56ch;font:400 14.5px/1.68 'IBM Plex Sans';color:#5C574D;text-wrap:pretty">The real thing at real size, not a screenshot cropped to fit. The trace is the fleet's pulse: five lanes, one per event class, running live while you read this.</p>
+    </div>
+
+    <div style="perspective:2400px;perspective-origin:50% 26%;display:flex;justify-content:center;overflow:hidden;padding-bottom:10px">
+      <div style="transform:rotateX(5deg) rotateY(-11deg) scale(.6);transform-style:preserve-3d;flex:0 0 auto">
+        <div style="width:1460px;padding:16px;border-radius:24px;background:linear-gradient(150deg,#E8E2D5 0%,#CFC7B6 38%,#B7AE9A 68%,#E8E2D5 100%);box-shadow:-60px 70px 120px -50px rgba(22,20,15,.6),0 0 0 1px #A79E88,inset 0 2px 0 rgba(255,255,255,.7)">
+          <div style="border-radius:12px;overflow:hidden;background:#07060A;box-shadow:inset 0 0 0 1px #2A2536,inset 0 0 70px rgba(0,0,0,.9)">
+
+            <div style="height:36px;background:#0C0B10;border-bottom:1px solid #1C1A24;display:flex;align-items:center;padding:0 14px;gap:8px">
+              <span style="width:11px;height:11px;border-radius:50%;background:#3A3644"></span><span style="width:11px;height:11px;border-radius:50%;background:#3A3644"></span><span style="width:11px;height:11px;border-radius:50%;background:#3A3644"></span>
+              <span style="margin:0 auto;font:500 11px/1 'IBM Plex Mono';color:#8C8698;letter-spacing:.06em">127.0.0.1:7770</span>
+            </div>
+
+            <div style="display:grid;grid-template-columns:214px minmax(0,1fr);height:790px">
+
+              <div style="background:#0A090E;border-right:1px solid #1E1C26;display:flex;flex-direction:column">
+                <div style="padding:17px 16px 16px;display:flex;align-items:center;gap:11px">
+                  <img src="logo.svg" alt="" style="width:28px;height:22px;image-rendering:pixelated;flex:0 0 auto">
+                  <span style="font:400 20px/1 'Instrument Serif',serif;background:linear-gradient(180deg,#FFF0C2,#D8A038);-webkit-background-clip:text;background-clip:text;color:transparent">Aurium</span>
+                </div>
+                <div style="padding:0 10px;display:flex;flex-direction:column;gap:2px">
+                  <div style="position:relative;display:flex;align-items:center;padding:10px 12px;border-radius:8px;background:linear-gradient(90deg,rgba(245,195,90,.14),rgba(245,195,90,.03));border:1px solid #4A3510">
+                    <span style="position:absolute;left:0;top:6px;bottom:6px;width:2px;border-radius:2px;background:linear-gradient(180deg,#FFF0C2,#D8A038)"></span>
+                    <span style="font:600 12.5px/1 'IBM Plex Sans';color:#FFE9A8">Workspace</span>
+                  </div>
+                  <div style="display:flex;align-items:center;padding:10px 12px"><span style="font:500 12.5px/1 'IBM Plex Sans';color:#C8C3D1">Approvals</span><span style="margin-left:auto;font:600 10px/1 'IBM Plex Mono';background:#E0866F;color:#200C06;border-radius:999px;padding:3px 7px">4</span></div>
+                  <div style="display:flex;align-items:center;padding:10px 12px"><span style="font:500 12.5px/1 'IBM Plex Sans';color:#C8C3D1">Spend</span><span style="margin-left:auto;font:400 10.5px/1 'IBM Plex Mono';color:#9B95A5">$61.40</span></div>
+                  <div style="display:flex;align-items:center;padding:10px 12px"><span style="font:500 12.5px/1 'IBM Plex Sans';color:#C8C3D1">Accounts</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;font:400 10px/1 'IBM Plex Mono';color:#E0866F"><i style="width:6px;height:6px;border-radius:50%;background:#E0866F;display:inline-block"></i>1</span></div>
+                  <div style="display:flex;align-items:center;padding:10px 12px"><span style="font:500 12.5px/1 'IBM Plex Sans';color:#C8C3D1">Events</span><span style="margin-left:auto;font:400 10.5px/1 'IBM Plex Mono';color:#9B95A5">42/m</span></div>
+                  <div style="display:flex;align-items:center;padding:10px 12px"><span style="font:500 12.5px/1 'IBM Plex Sans';color:#C8C3D1">Projects</span><span style="margin-left:auto;font:400 10.5px/1 'IBM Plex Mono';color:#9B95A5">4</span></div>
+                </div>
+                <div style="margin:24px 0 0;padding:0 16px;display:flex;flex-direction:column;gap:10px">
+                  <span style="font:600 9.5px/1 'IBM Plex Mono';letter-spacing:.18em;text-transform:uppercase;color:#9B95A5">Projects</span>
+                  <div style="display:flex;flex-direction:column;gap:2px">
+                    <sc-for list="{{ projects }}" as="p" hint-placeholder-count="4">
+                      <div style="display:flex;align-items:center;gap:9px;padding:6px 0">
+                        <span style="width:6px;height:6px;border-radius:50%;background:{{ p.color }}"></span>
+                        <span style="font:600 11.5px/1 'IBM Plex Sans';color:{{ p.nameColor }}">{{ p.name }}</span>
+                        <span style="margin-left:auto;font:600 10px/1 'IBM Plex Mono';color:#8C8698;border:1px solid #2C2836;border-radius:4px;padding:2px 5px">&gt;_</span>
+                        <span style="font:400 10.5px/1 'IBM Plex Mono';color:#9B95A5">{{ p.count }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="margin-top:auto;border-top:1px solid #1A1822;padding:13px 16px;display:flex;flex-direction:column;gap:9px">
+                  <div style="display:flex;align-items:center;gap:7px;font:500 10.5px/1 'IBM Plex Mono';color:#6CC79A"><span style="width:6px;height:6px;border-radius:50%;background:#6CC79A;animation:breathe 2.6s ease-in-out infinite"></span>daemon live · 4h 12m</div>
+                  <div style="display:flex;align-items:center;gap:8px;font:400 10.5px/1 'IBM Plex Mono';color:#9B95A5"><span style="border:1px solid #2C2836;border-radius:5px;padding:4px 8px;color:#C8C3D1">system</span><span>theme</span></div>
+                </div>
+              </div>
+
+              <div style="min-width:0;display:flex;flex-direction:column">
+                <div style="position:relative;height:54px;background:#0F0E13;border-bottom:1px solid #1E1C26;display:flex;align-items:center;gap:13px;padding:0 20px">
+                  <span style="font:600 14px/1 'IBM Plex Sans';color:#F2EFEA">aurium</span>
+                  <span style="font:400 10.5px/1 'IBM Plex Mono';color:#9B95A5">3 repos · 6 agents · ~/code/aurium</span>
+                  <span style="margin-left:auto;display:inline-flex;align-items:center;gap:7px;font:500 11px/1 'IBM Plex Mono';color:#E0866F;background:rgba(224,134,111,.1);border:1px solid rgba(224,134,111,.3);padding:6px 11px;border-radius:999px"><span style="width:6px;height:6px;border-radius:50%;background:#E0866F;animation:breathe 1.7s ease-in-out infinite"></span>4 waiting on you</span>
+                  <span style="display:inline-flex;align-items:center;font:500 11px/1 'IBM Plex Mono';color:#C79A47;border:1px solid #4A3510;padding:6px 11px;border-radius:999px">42.6 ev/min</span>
+                  <span style="font:600 11px/1 'IBM Plex Sans';background:linear-gradient(180deg,#FFE9A8,#D8A038);color:#2A1C05;border-radius:7px;padding:8px 13px">New agent</span>
+                  <span style="position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent,rgba(245,195,90,.28) 18%,#FFE9A8 50%,rgba(245,195,90,.28) 82%,transparent);background-size:200% 100%;animation:shimmer 9s linear infinite"></span>
+                </div>
+
+                <div style="display:grid;grid-template-columns:292px minmax(0,1fr) 372px;flex:1;min-height:0">
+
+                  <div style="background:#0A090E;border-right:1px solid #1E1C26;display:flex;flex-direction:column;min-width:0">
+                    <div style="display:flex;align-items:center;gap:8px;padding:12px 13px;border-bottom:1px solid #1A1822">
+                      <span style="font:600 9.5px/1 'IBM Plex Mono';letter-spacing:.18em;text-transform:uppercase;color:#9B95A5">Agents</span>
+                      <span style="margin-left:auto;display:flex;gap:4px">
+                        <span style="font:500 10px/1 'IBM Plex Mono';color:#F2EFEA;background:#1C1A24;border:1px solid #312D3C;border-radius:4px;padding:4px 7px">all</span>
+                        <span style="font:500 10px/1 'IBM Plex Mono';color:#9B95A5;padding:4px 7px">live</span>
+                        <span style="font:500 10px/1 'IBM Plex Mono';color:#9B95A5;padding:4px 7px">red</span>
+                      </span>
+                    </div>
+                    <div style="padding:9px 11px;border-bottom:1px solid #1A1822">
+                      <div style="display:flex;align-items:center;gap:8px;background:#121016;border:1px solid #232130;border-radius:7px;padding:8px 10px">
+                        <span style="font:400 11px/1 'IBM Plex Mono';color:#8C8698">/</span>
+                        <span style="font:400 11.5px/1 'IBM Plex Sans';color:#8C8698">filter agents, branches, repos</span>
+                      </div>
+                    </div>
+                    <div style="flex:1;min-height:0;overflow:hidden;padding:9px 9px;display:flex;flex-direction:column;gap:5px">
+                      <div style="display:flex;align-items:center;gap:8px;background:#15131B;border:1px solid #2A2735;border-radius:7px;padding:7px 9px">
+                        <span style="width:7px;height:7px;border-radius:50%;background:#E0866F;box-shadow:0 0 8px rgba(224,134,111,.8)"></span>
+                        <span style="font:600 11.5px/1 'IBM Plex Sans';color:#F2EFEA;flex:1">aurium</span>
+                        <span style="font:600 10px/1 'IBM Plex Mono';color:#C79A47;border:1px solid #4A3510;border-radius:4px;padding:2px 5px">&gt;_</span>
+                        <span style="font:400 10.5px/1 'IBM Plex Mono';color:#9B95A5">6</span>
+                      </div>
+                      <div style="display:flex;flex-direction:column;gap:4px;padding-left:7px">
+                        <sc-for list="{{ tiles }}" as="t" hint-placeholder-count="6">
+                          <div style="display:flex;min-height:46px;background:{{ t.bg }};border:1px solid {{ t.border }};border-radius:7px;overflow:hidden">
+                            <span style="width:4px;background:{{ t.barBg }}"></span>
+                            <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;justify-content:center;padding:6px 9px">
+                              <span style="display:flex;align-items:baseline;gap:6px;min-width:0">
+                                <span style="font:600 12px/1 'IBM Plex Sans';color:{{ t.nameColor }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.name }}</span>
+                                <span style="font:500 9.5px/1 'IBM Plex Mono';letter-spacing:.08em;text-transform:uppercase;color:{{ t.stateColor }}">{{ t.state }}</span>
+                              </span>
+                              <span style="display:flex;align-items:center;gap:7px;font:400 10px/1 'IBM Plex Mono';color:#9B95A5;min-width:0">
+                                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.branch }}</span>
+                                <span style="font-size:9.5px;border:1px solid {{ t.prColor }};color:{{ t.prColor }};border-radius:3px;padding:1px 4px">{{ t.pr }}</span>
+                                <span style="margin-left:auto">{{ t.last }}</span>
+                              </span>
+                            </span>
+                          </div>
+                        </sc-for>
+                        <div style="display:flex;min-height:36px;border:1px dashed #302C3B;border-radius:7px;align-items:center;overflow:hidden">
+                          <span style="width:4px;height:100%;background:#302C3B"></span>
+                          <span style="padding:0 10px;font:400 10.5px/1 'IBM Plex Mono';color:#8C8698">+  add agent</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="min-width:0;display:flex;flex-direction:column;background:#07060A">
+                    <div style="flex:1;min-height:0;padding:15px 18px;display:flex;flex-direction:column;gap:13px">
+                      <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+                        <h3 style="margin:0;font:400 18px/1 'Instrument Serif',serif;color:#F2EFEA">Pulse</h3>
+                        <span style="display:flex;gap:12px;font:400 10px/1 'IBM Plex Mono';color:#9B95A5">
+                          <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:10px;height:2px;background:#7AA6DD;display:inline-block"></i>agents</span>
+                          <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:10px;height:2px;background:#C9A678;display:inline-block"></i>containers</span>
+                          <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:10px;height:2px;background:#86C08A;display:inline-block"></i>context</span>
+                          <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:10px;height:2px;background:#D9AC54;display:inline-block"></i>tools</span>
+                          <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:10px;height:2px;background:#E0866F;display:inline-block"></i>approvals</span>
+                        </span>
+                      </div>
+                      <div style="position:relative;flex:1;min-height:210px;border:1px solid #201E28;border-radius:11px;background:linear-gradient(180deg,#0C0B11,#090810);overflow:hidden">
+                        <div style="position:absolute;left:78px;top:0;right:0;bottom:0;overflow:hidden">
+                          <div style="position:absolute;left:0;top:0;height:100%;width:2000px;animation:trace 26s linear infinite">
+                            <svg viewBox="0 0 2000 190" preserveAspectRatio="none" style="display:block;width:2000px;height:100%">
+                              <sc-for list="{{ lanes }}" as="lane" hint-placeholder-count="5">
+                                <g>
+                                  <line x1="0" y1="{{ lane.base }}" x2="2000" y2="{{ lane.base }}" stroke="{{ lane.color }}" stroke-width="1" opacity="0.22"></line>
+                                  <sc-for list="{{ lane.ticks }}" as="t" hint-placeholder-count="60">
+                                    <rect x="{{ t.x }}" y="{{ t.y }}" width="1.6" height="{{ t.h }}" fill="{{ lane.color }}" opacity="0.92"></rect>
+                                  </sc-for>
+                                </g>
+                              </sc-for>
+                            </svg>
+                          </div>
+                        </div>
+                        <svg viewBox="0 0 78 190" preserveAspectRatio="none" style="position:absolute;left:0;top:0;width:78px;height:100%">
+                          <sc-for list="{{ lanes }}" as="lane" hint-placeholder-count="5">
+                            <text x="10" y="{{ lane.base }}" dominant-baseline="middle" fill="#9B95A5" font-family="IBM Plex Mono" font-size="10">{{ lane.label }}</text>
+                          </sc-for>
+                        </svg>
+                        <span style="position:absolute;left:78px;top:0;bottom:0;width:26px;background:linear-gradient(90deg,#0A0910,rgba(10,9,16,0));pointer-events:none"></span>
+                        <span style="position:absolute;right:0;top:0;bottom:0;width:110px;background:linear-gradient(90deg,rgba(245,195,90,0),rgba(245,195,90,.16));pointer-events:none"></span>
+                        <span style="position:absolute;right:10px;top:0;bottom:0;width:1px;background:linear-gradient(180deg,#FFF0C2,#D8A038);box-shadow:0 0 20px 3px rgba(245,195,90,.55)"></span>
+                      </div>
+
+                      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px">
+                        <div style="border:1px solid #201E28;border-radius:11px;background:#0D0C12;padding:12px 13px;display:flex;flex-direction:column;gap:4px;border-left:2px solid #7AA6DD"><b style="font:600 26px/1 'IBM Plex Sans';color:#F2EFEA">14</b><span style="font:500 9.5px/1 'IBM Plex Mono';letter-spacing:.11em;text-transform:uppercase;color:#9B95A5">working</span></div>
+                        <div style="border:1px solid #4A2F27;border-radius:11px;background:linear-gradient(180deg,rgba(224,134,111,.1),#0D0C12);padding:12px 13px;display:flex;flex-direction:column;gap:4px;border-left:2px solid #E0866F"><b style="font:600 26px/1 'IBM Plex Sans';color:#F3B6A4">4</b><span style="font:500 9.5px/1 'IBM Plex Mono';letter-spacing:.11em;text-transform:uppercase;color:#C08876">waiting on you</span></div>
+                        <div style="border:1px solid #201E28;border-radius:11px;background:#0D0C12;padding:12px 13px;display:flex;flex-direction:column;gap:4px;border-left:2px solid #7AA6DD"><b style="font:600 26px/1 'IBM Plex Sans';color:#F2EFEA">17</b><span style="font:500 9.5px/1 'IBM Plex Mono';letter-spacing:.11em;text-transform:uppercase;color:#9B95A5">unread</span></div>
+                        <div style="border:1px solid #6B5220;border-radius:11px;background:linear-gradient(180deg,rgba(245,195,90,.09),#0D0C12);padding:12px 13px;display:flex;flex-direction:column;gap:4px;border-left:2px solid #D8A038"><b style="font:600 26px/1 'IBM Plex Sans';background:linear-gradient(180deg,#FFF0C2,#D8A038);-webkit-background-clip:text;background-clip:text;color:transparent">412K</b><span style="font:500 9.5px/1 'IBM Plex Mono';letter-spacing:.11em;text-transform:uppercase;color:#C79A47">tokens · 1h</span></div>
+                      </div>
+                    </div>
+
+                    <div style="border-top:1px solid #1E1C26;background:#0A090E;padding:11px 18px;display:flex;flex-direction:column;gap:8px">
+                      <span style="font:600 9.5px/1 'IBM Plex Mono';letter-spacing:.18em;text-transform:uppercase;color:#9B95A5">Repositories</span>
+                      <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <span style="display:inline-flex;align-items:baseline;gap:8px;border:1px solid #1E1C26;border-radius:7px;background:#0F0E14;padding:6px 10px"><span style="font:600 11.5px/1 'IBM Plex Sans';color:#E6E2EB">aurium</span><span style="font:400 10px/1 'IBM Plex Mono';color:#9B95A5">main</span><span style="font:400 9.5px/1 'IBM Plex Mono';color:#6CC79A">origin</span></span>
+                        <span style="display:inline-flex;align-items:baseline;gap:8px;border:1px solid #1E1C26;border-radius:7px;background:#0F0E14;padding:6px 10px"><span style="font:600 11.5px/1 'IBM Plex Sans';color:#E6E2EB">aurium-docs</span><span style="font:400 10px/1 'IBM Plex Mono';color:#9B95A5">main</span><span style="font:400 9.5px/1 'IBM Plex Mono';color:#6CC79A">origin</span></span>
+                        <span style="display:inline-flex;align-items:baseline;gap:8px;border:1px solid #1E1C26;border-radius:7px;background:#0F0E14;padding:6px 10px"><span style="font:600 11.5px/1 'IBM Plex Sans';color:#E6E2EB">guard-hooks</span><span style="font:400 10px/1 'IBM Plex Mono';color:#9B95A5">v2</span></span>
+                      </div>
+                    </div>
+
+                    <div style="border-top:1px solid #1E1C26;background:#08070C;display:flex;flex-direction:column;height:248px">
+                      <div style="display:flex;align-items:center;gap:9px;height:36px;padding:0 14px;border-bottom:1px solid #1A1822;background:#0B0A10">
+                        <span style="font:600 9.5px/1 'IBM Plex Mono';letter-spacing:.14em;text-transform:uppercase;color:#C79A47">&gt;_ terminal</span>
+                        <span style="display:inline-flex;align-items:center;gap:7px;font:500 11px/1 'IBM Plex Mono';color:#FFE9A8;border-bottom:1px solid #C68F2C;padding-bottom:3px"><i style="width:5px;height:5px;border-radius:50%;background:#F5C35A;display:inline-block"></i>planner</span>
+                        <span style="display:inline-flex;align-items:center;gap:7px;font:400 11px/1 'IBM Plex Mono';color:#9B95A5"><i style="width:5px;height:5px;border-radius:50%;background:#E0866F;display:inline-block"></i>reviewer-3</span>
+                        <span style="display:inline-flex;align-items:center;gap:7px;font:400 11px/1 'IBM Plex Mono';color:#9B95A5"><i style="width:5px;height:5px;border-radius:50%;background:#86C08A;display:inline-block"></i>indexer</span>
+                        <span style="margin-left:auto;font:400 10.5px/1 'IBM Plex Mono';color:#8C8698">⌃`</span>
+                      </div>
+                      <div style="flex:1;min-height:0;padding:11px 15px;display:flex;flex-direction:column;gap:3px;overflow:hidden">
+                        <sc-for list="{{ term }}" as="l" hint-placeholder-count="7">
+                          <div style="display:flex;gap:11px;font:400 11.5px/1.65 'IBM Plex Mono';min-width:0">
+                            <span style="color:#8C8698;flex:0 0 auto">{{ l.ts }}</span>
+                            <span style="color:{{ l.color }};flex:0 0 96px">{{ l.who }}</span>
+                            <span style="color:#C8C3D1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ l.text }}</span>
+                          </div>
+                        </sc-for>
+                        <div style="display:flex;gap:9px;align-items:center;font:400 11.5px/1.65 'IBM Plex Mono';margin-top:4px"><span style="color:#C79A47">aurium@planner</span><span style="color:#8C8698">au/rail-perf</span><span style="color:#F5C35A">$</span><span style="width:7px;height:14px;background:#F5C35A;animation:caret 1.1s step-end infinite;display:inline-block"></span></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="border-left:1px solid #1E1C26;background:#0C0B11;display:flex;flex-direction:column;min-width:0">
+                    <div style="padding:13px 15px;border-bottom:1px solid #1A1822;display:flex;flex-direction:column;gap:7px">
+                      <div style="display:flex;align-items:center;gap:8px">
+                        <span style="width:8px;height:8px;border-radius:50%;background:linear-gradient(180deg,#FFF0C2,#D8A038);box-shadow:0 0 10px rgba(245,195,90,.7)"></span>
+                        <span style="font:600 14px/1 'IBM Plex Sans';color:#F2EFEA">planner</span>
+                        <span style="font:400 10px/1 'IBM Plex Mono';color:#9B95A5">running</span>
+                        <span style="margin-left:auto;font:500 10px/1 'IBM Plex Mono';color:#9B95A5;border:1px solid #2C2836;border-radius:5px;padding:4px 8px">copy attach</span>
+                      </div>
+                      <div style="display:flex;gap:10px;flex-wrap:wrap;font:400 10px/1 'IBM Plex Mono';color:#9B95A5"><span>au/rail-perf</span><span>anthropic</span><span style="color:#8C8698">ag_7f3c</span></div>
+                    </div>
+                    <div style="flex:1;min-height:0;padding:13px 15px;display:flex;flex-direction:column;gap:9px;overflow:hidden">
+                      <article style="border:1px solid #232130;border-radius:9px;background:#131118;padding:9px 11px;display:flex;flex-direction:column;gap:5px">
+                        <div style="display:flex;align-items:baseline;gap:7px;font:400 9.5px/1 'IBM Plex Mono';color:#9B95A5"><span style="font-weight:600;color:#E6E2EB">ag_7f3c</span><span>STATUS</span><span style="margin-left:auto">6m</span></div>
+                        <div style="font:400 12.5px/1.55 'IBM Plex Sans';color:#D6D2DE">Profiled the rail. 71% of paint time is the project accordion re-mounting every tile on each event frame.</div>
+                        <div style="display:flex;gap:5px;flex-wrap:wrap"><code style="font:400 9.5px/1.5 'IBM Plex Mono';background:#1A1822;border:1px solid #262430;border-radius:4px;padding:1px 5px;color:#A8A2B2">views/rail.js</code><code style="font:400 9.5px/1.5 'IBM Plex Mono';background:#1A1822;border:1px solid #262430;border-radius:4px;padding:1px 5px;color:#A8A2B2">lib/dom.js</code></div>
+                      </article>
+                      <article style="border:1px solid #6B5220;border-radius:9px;background:linear-gradient(180deg,rgba(245,195,90,.1),rgba(245,195,90,.03));padding:9px 11px;display:flex;flex-direction:column;gap:5px">
+                        <div style="display:flex;align-items:baseline;gap:7px;font:400 9.5px/1 'IBM Plex Mono';color:#B3A785"><span style="font-weight:600;color:#FFE9A8">you</span><span>MESSAGE</span><span style="margin-left:auto">5m</span></div>
+                        <div style="font:400 12.5px/1.55 'IBM Plex Sans';color:#EFE6D2">Do it, but keep the worst-state dot on the project header. That is the whole reason the rail exists.</div>
+                      </article>
+                      <article style="border:1px solid #232130;border-left:3px solid #E0866F;border-radius:9px;background:#131118;padding:9px 11px;display:flex;flex-direction:column;gap:5px">
+                        <div style="display:flex;align-items:baseline;gap:7px;font:400 9.5px/1 'IBM Plex Mono';color:#9B95A5"><span style="font-weight:600;color:#E6E2EB">ag_7f3c</span><span>APPROVAL_REQUIRED</span><span style="color:#E0866F">high</span><span style="margin-left:auto">3m</span></div>
+                        <div style="font:400 12.5px/1.55 'IBM Plex Sans';color:#D6D2DE">Needs <code style="font:400 11px 'IBM Plex Mono';color:#F5C35A">net.http.post</code> to api.github.com to open the PR against a protected branch.</div>
+                        <div style="display:flex;gap:7px;margin-top:3px">
+                          <span style="font:600 11px/1 'IBM Plex Sans';background:linear-gradient(180deg,#FFE9A8,#D8A038);color:#2A1C05;border-radius:6px;padding:7px 13px">Approve</span>
+                          <span style="font:600 11px/1 'IBM Plex Sans';color:#A8A2B2;border:1px solid #312D3C;border-radius:6px;padding:7px 13px">Reject</span>
+                        </div>
+                      </article>
+                      <article style="border:1px solid #232130;border-radius:9px;background:#131118;padding:9px 11px;display:flex;flex-direction:column;gap:5px">
+                        <div style="display:flex;align-items:baseline;gap:7px;font:400 9.5px/1 'IBM Plex Mono';color:#9B95A5"><span style="font-weight:600;color:#E6E2EB">agent</span><span>thinking</span></div>
+                        <div style="display:inline-flex;gap:4px;align-items:center;height:1.2em">
+                          <i style="width:5px;height:5px;border-radius:50%;background:#D8A038;animation:dots 1.4s ease-in-out infinite"></i>
+                          <i style="width:5px;height:5px;border-radius:50%;background:#D8A038;animation:dots 1.4s ease-in-out .2s infinite"></i>
+                          <i style="width:5px;height:5px;border-radius:50%;background:#D8A038;animation:dots 1.4s ease-in-out .4s infinite"></i>
+                        </div>
+                      </article>
+                    </div>
+                    <div style="border-top:1px solid #1A1822;padding:11px 15px;display:flex;flex-direction:column;gap:8px">
+                      <div style="border:1px solid #262430;border-radius:8px;background:#121016;padding:9px 11px;min-height:48px;font:400 12.5px/1.5 'IBM Plex Sans';color:#8C8698">Say something to this agent…</div>
+                      <div style="display:flex;align-items:center;gap:9px">
+                        <span style="font:400 10px/1 'IBM Plex Mono';color:#8C8698">⌘↵ to send</span>
+                        <span style="margin-left:auto;font:600 11.5px/1 'IBM Plex Sans';background:linear-gradient(180deg,#FFE9A8,#D8A038);color:#2A1C05;border-radius:7px;padding:8px 16px">Send</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="height:16px"></div>
+          <div style="display:flex;justify-content:center;align-items:center;gap:10px">
+            <span style="width:9px;height:9px;border-radius:50%;background:linear-gradient(180deg,#F5C35A,#8A6212);box-shadow:0 0 10px rgba(198,143,44,.8)"></span>
+            <span style="font:500 9.5px/1 'IBM Plex Mono';letter-spacing:.22em;text-transform:uppercase;color:#6E6555">Aurium</span>
+          </div>
+        </div>
+        <div style="height:28px;width:270px;margin:0 auto;background:linear-gradient(180deg,#CFC7B6,#A79E88);border-radius:0 0 10px 10px"></div>
+        <div style="height:13px;width:440px;margin:0 auto;background:linear-gradient(180deg,#B7AE9A,#8F8672);border-radius:9px;box-shadow:0 30px 50px -18px rgba(22,20,15,.5)"></div>
+      </div>
+    </div>
+  
+  <!-- OPEN SOURCE -->
+  <div id="open" style="border-bottom:1px solid #16140F;background:#16140F;color:#F7F4EE;position:relative;overflow:hidden">
+    <div style="position:absolute;left:50%;top:-70%;width:900px;height:200%;margin-left:-450px;background:radial-gradient(closest-side,rgba(245,195,90,.16),rgba(245,195,90,0));pointer-events:none"></div>
+    <div style="position:relative;max-width:1220px;margin:0 auto;padding:70px 32px;display:flex;flex-direction:column;gap:34px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:48px;align-items:end">
+        <div style="display:flex;flex-direction:column;gap:18px;min-width:0">
+          <span style="font:500 10px/1 'IBM Plex Mono';letter-spacing:.26em;text-transform:uppercase;color:#C68F2C">No. 03 · open source</span>
+          <img src="logo.svg" alt="" style="width:104px;height:83px;image-rendering:pixelated;align-self:flex-start;filter:drop-shadow(0 12px 28px rgba(245,195,90,.3))">
+          <h2 style="margin:0;font:400 clamp(34px,5.6vw,72px)/.98 'Instrument Serif',serif;letter-spacing:-.018em;max-width:15ch;text-wrap:pretty">Yours to read,<br><em style="font-style:italic;background:linear-gradient(180deg,#FFFBEE 0%,#FFF0C2 16%,#F5C35A 44%,#C68F2C 76%,#6B4912 100%);background-size:100% 280%;animation:pour 11s ease-in-out infinite alternate;-webkit-background-clip:text;background-clip:text;color:transparent">fork and run.</em></h2>
+        </div>
+        <p style="margin:0;font:400 15.5px/1.7 'IBM Plex Sans';color:#BDB6A6;max-width:52ch;text-wrap:pretty">MIT licensed, every line of it. A Go daemon, a frontend with no bundler, a thirty line Tauri shell. <code style="font:400 13px 'IBM Plex Mono';color:#F5C35A">make build</code> needs only Go. The API in <code style="font:400 13px 'IBM Plex Mono';color:#F5C35A">api/openapi.yaml</code> is the product boundary, so anything the window does, you can do too.</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:1px;background:#332F26;border:1px solid #332F26">
+        <sc-for list="{{ facts }}" as="fa" hint-placeholder-count="5">
+          <div style="background:#1D1A13;padding:20px 21px;display:flex;flex-direction:column;gap:7px">
+            <b style="font:400 clamp(24px,2.6vw,32px)/1.05 'Instrument Serif',serif;color:{{ fa.color }}">{{ fa.value }}</b>
+            <span style="font:500 9.5px/1 'IBM Plex Mono';letter-spacing:.14em;text-transform:uppercase;color:#8A8474">{{ fa.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;gap:11px;flex-wrap:wrap;align-items:center">
+        <a href="https://github.com/RhyChaw/aurium" style="display:inline-flex;align-items:center;gap:11px;font:600 13.5px/1 'IBM Plex Sans';background:linear-gradient(180deg,#FFF6DC,#FFE9A8 22%,#D8A038 68%,#A87A22);background-size:100% 220%;animation:melt 8s ease-in-out infinite alternate;color:#2A1C05;padding:15px 22px;border:none">Read the source on GitHub</a>
+        <a href="https://github.com/RhyChaw/aurium/fork" style="font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A4335;padding:15px 22px">Fork it</a>
+        <a href="https://github.com/RhyChaw/aurium/blob/main/api/openapi.yaml" style="font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A4335;padding:15px 22px">Read the API</a>
+        <span style="font:400 12px/1.6 'IBM Plex Mono';color:#8A8474">no telemetry · no account · no server but yours</span>
+        <span style="flex:1 1 100%;font:400 13px/1.7 'IBM Plex Sans';color:#BDB6A6;margin-top:4px">Built and maintained by <a href="https://github.com/RhyChaw" style="color:#F5C35A;border-bottom:1px solid rgba(245,195,90,.4)">@RhyChaw</a>, in the open, one commit at a time. Issues and pull requests are read by a person.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROBLEM -->
+  <div style="border-bottom:1px solid #16140F;background:#EFEADF">
+    <div style="max-width:1220px;margin:0 auto;padding:64px 32px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:48px;align-items:start">
+      <h2 style="margin:0;font:400 clamp(30px,4.6vw,50px)/1.06 'Instrument Serif',serif;max-width:20ch;text-wrap:pretty">One agent is a chat window. Thirty is an operations problem.</h2>
+      <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+        <p style="margin:0;font:400 15.5px/1.68 'IBM Plex Sans';color:#3A362D;max-width:54ch;text-wrap:pretty">Running agents in parallel is the easy half. Knowing what they are all doing is the half nobody built. Aurium is a daemon that owns the fleet, containers and branches and context and credentials and spend, plus a window that makes the fleet legible at a glance.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:0;border-top:1px solid #16140F">
+          <sc-for list="{{ pillars }}" as="p" hint-placeholder-count="4">
+            <div style="padding:17px 20px 19px 0;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid #DCD5C6">
+              <span style="font:500 9.5px/1 'IBM Plex Mono';letter-spacing:.16em;text-transform:uppercase;color:{{ p.tagColor }}">{{ p.tag }}</span>
+              <h3 style="margin:0;font:600 14.5px/1.3 'IBM Plex Sans';color:#16140F">{{ p.title }}</h3>
+              <p style="margin:0;font:400 12.5px/1.62 'IBM Plex Sans';color:#5C574D;text-wrap:pretty">{{ p.body }}</p>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPROVALS -->
+  <div id="approvals" style="border-bottom:1px solid #16140F">
+    <div style="max-width:1220px;margin:0 auto;padding:64px 32px;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:48px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+        <span style="font:500 10px/1 'IBM Plex Mono';letter-spacing:.26em;text-transform:uppercase;color:#97341F">No. 04 · the part nothing else does</span>
+        <h2 style="margin:0;font:400 clamp(28px,4.2vw,46px)/1.08 'Instrument Serif',serif;max-width:20ch;text-wrap:pretty">A blocked agent is an idle agent. Aurium comes and finds you.</h2>
+        <p style="margin:0;max-width:54ch;font:400 15px/1.68 'IBM Plex Sans';color:#3A362D;text-wrap:pretty">When an agent reaches for a capability it does not hold, a network call or a write outside its worktree or a secret, the daemon holds the call and asks. Approving executes the held call inside the daemon and hands the agent the result, so it resumes where it stopped instead of starting over. The desktop app raises a native notification, because a window behind three others is a window you are not reading.</p>
+        <div style="display:flex;gap:0;flex-wrap:wrap;border-top:1px solid #DCD5C6">
+          <span style="font:400 11px/1 'IBM Plex Mono';color:#3A362D;border-bottom:1px solid #DCD5C6;padding:11px 14px 11px 0">net.http.*</span>
+          <span style="font:400 11px/1 'IBM Plex Mono';color:#3A362D;border-bottom:1px solid #DCD5C6;padding:11px 14px">fs.write outside worktree</span>
+          <span style="font:400 11px/1 'IBM Plex Mono';color:#3A362D;border-bottom:1px solid #DCD5C6;padding:11px 14px">secrets.read</span>
+          <span style="font:400 11px/1 'IBM Plex Mono';color:#3A362D;border-bottom:1px solid #DCD5C6;padding:11px 14px">shell.exec</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+        <sc-for list="{{ approvals }}" as="a" hint-placeholder-count="2">
+          <div style="border:1px solid {{ a.border }};background:{{ a.bg }};padding:17px 18px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+              <span style="font:500 12.5px/1.35 'IBM Plex Mono';color:#7A5510;word-break:break-all">{{ a.cap }}</span>
+              <span style="margin-left:auto;font:400 10.5px/1 'IBM Plex Mono';color:{{ a.expColor }};white-space:nowrap">{{ a.expiry }}</span>
+            </div>
+            <p style="margin:0;font:400 12.5px/1.6 'IBM Plex Sans';color:#5C574D">{{ a.reason }}</p>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="font:600 11px/1 'IBM Plex Sans';background:#2F6F4F;color:#F4FBF7;padding:9px 15px">Approve</span>
+              <span style="font:600 11px/1 'IBM Plex Sans';color:#16140F;border:1px solid #CFC7B6;padding:9px 15px">Reject</span>
+              <span style="margin-left:auto;font:400 10px/1 'IBM Plex Mono';color:#5C574D">{{ a.who }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- USE CASES -->
+  <div id="uses" style="border-bottom:1px solid #16140F;background:#EFEADF">
+    <div style="max-width:1220px;margin:0 auto;padding:64px 32px;display:flex;flex-direction:column;gap:32px">
+      <div style="display:flex;align-items:baseline;gap:22px;flex-wrap:wrap">
+        <span style="font:500 10px/1 'IBM Plex Mono';letter-spacing:.26em;text-transform:uppercase;color:#7A5510">No. 05 · use cases</span>
+        <h2 style="margin:0;font:400 clamp(28px,4.2vw,46px)/1.08 'Instrument Serif',serif">What people actually run it for</h2>
+      </div>
+      <div style="display:flex;flex-direction:column;border-top:1px solid #16140F">
+        <sc-for list="{{ useCases }}" as="u" hint-placeholder-count="4">
+          <div style="display:grid;grid-template-columns:96px minmax(0,1.1fr) minmax(0,1.5fr) auto;gap:26px;align-items:start;padding:24px 0;border-bottom:1px solid #DCD5C6">
+            <span style="font:400 clamp(34px,4vw,54px)/.94 'Instrument Serif',serif;background:linear-gradient(180deg,#C68F2C,#8A6212);-webkit-background-clip:text;background-clip:text;color:transparent">{{ u.n }}</span>
+            <h3 style="margin:0;font:600 17px/1.32 'IBM Plex Sans';color:#16140F;text-wrap:pretty">{{ u.title }}</h3>
+            <p style="margin:0;font:400 13.5px/1.7 'IBM Plex Sans';color:#5C574D;text-wrap:pretty">{{ u.body }}</p>
+            <span style="font:400 10.5px/1 'IBM Plex Mono';color:#5C574D;border:1px solid #CFC7B6;padding:7px 11px;white-space:nowrap">{{ u.tag }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOW -->
+  <div id="how" style="border-bottom:1px solid #16140F">
+    <div style="max-width:1220px;margin:0 auto;padding:60px 32px;display:flex;flex-direction:column;gap:30px">
+      <div style="display:flex;align-items:baseline;gap:22px;flex-wrap:wrap">
+        <span style="font:500 10px/1 'IBM Plex Mono';letter-spacing:.26em;text-transform:uppercase;color:#7A5510">No. 06 · how it works</span>
+        <h2 style="margin:0;font:400 clamp(26px,3.8vw,40px)/1.12 'Instrument Serif',serif">A daemon on loopback, and a window pointed at it</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(244px,1fr));gap:1px;background:#DCD5C6;border:1px solid #DCD5C6">
+        <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+          <div style="background:#F7F4EE;padding:22px;display:flex;flex-direction:column;gap:11px">
+            <span style="font:400 30px/1 'Instrument Serif',serif;background:linear-gradient(180deg,#C68F2C,#8A6212);-webkit-background-clip:text;background-clip:text;color:transparent">{{ s.n }}</span>
+            <h3 style="margin:0;font:600 14.5px/1.3 'IBM Plex Sans';color:#16140F">{{ s.title }}</h3>
+            <p style="margin:0;font:400 12.5px/1.66 'IBM Plex Sans';color:#5C574D;text-wrap:pretty">{{ s.body }}</p>
+            <code style="align-self:flex-start;font:400 11px/1.5 'IBM Plex Mono';background:#100F14;color:#F5C35A;padding:7px 10px;margin-top:2px">{{ s.cmd }}</code>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- DOWNLOAD -->
+  <div id="download" style="border-bottom:1px solid #16140F;background:#16140F;color:#F7F4EE;position:relative;overflow:hidden">
+    <div style="position:absolute;left:50%;top:-80%;width:1000px;height:220%;margin-left:-500px;background:radial-gradient(closest-side,rgba(245,195,90,.17),rgba(245,195,90,0));pointer-events:none"></div>
+    <div style="position:relative;max-width:1220px;margin:0 auto;padding:70px 32px;display:flex;flex-direction:column;gap:34px">
+      <div style="display:flex;flex-direction:column;gap:15px;align-items:center;text-align:center">
+        <img src="logo.svg" alt="" style="width:76px;height:61px;image-rendering:pixelated;filter:drop-shadow(0 10px 24px rgba(245,195,90,.35))">
+        <span style="font:500 10px/1 'IBM Plex Mono';letter-spacing:.26em;text-transform:uppercase;color:#C68F2C">No. 07 · download · {{ version }}</span>
+        <h2 style="margin:0;font:400 clamp(38px,6.6vw,86px)/.95 'Instrument Serif',serif;letter-spacing:-.02em;background:linear-gradient(180deg,#FFFBEE 0%,#FFF0C2 16%,#F5C35A 42%,#C68F2C 70%,#6B4912 100%);background-size:100% 280%;animation:pour 10s ease-in-out infinite alternate;-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 14px 44px rgba(245,195,90,.26))">Get the window</h2>
+        <p style="margin:0;max-width:56ch;font:400 15px/1.7 'IBM Plex Sans';color:#BDB6A6;text-wrap:pretty">A native window onto your own daemon. Nothing leaves the machine. It listens on 127.0.0.1 only, and there is no account to make.</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(296px,1fr));gap:15px">
+        <div style="border:1px solid #6B5220;background:linear-gradient(180deg,rgba(245,195,90,.12),#1D1A13);padding:26px;display:flex;flex-direction:column;gap:17px;box-shadow:0 24px 64px -32px rgba(245,195,90,.45)">
+          <div style="display:flex;align-items:baseline;gap:10px"><h3 style="margin:0;font:600 20px/1 'IBM Plex Sans';color:#FFE9A8">macOS</h3><span style="font:400 10.5px/1 'IBM Plex Mono';color:#C68F2C">11 Big Sur or later</span></div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <a href="https://github.com/RhyChaw/aurium/releases/latest" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';background:linear-gradient(180deg,#FFF6DC,#FFE9A8 22%,#D8A038 68%,#A87A22);background-size:100% 220%;animation:melt 8s ease-in-out infinite alternate;color:#2A1C05;padding:16px 18px;border:none">Apple Silicon<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';opacity:.72">.dmg · arm64</span></a>
+            <a href="https://github.com/RhyChaw/aurium/releases/latest" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A3510;padding:16px 18px">Intel<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">.dmg · x86_64</span></a>
+          </div>
+          <div style="border-top:1px solid #332F26;padding-top:14px;font:400 11.5px/1 'IBM Plex Mono';color:#BDB6A6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:#F5C35A">$ </span>brew install rhychaw/tap/aurium</div>
+        </div>
+
+        <div style="border:1px solid #4A4335;background:#1D1A13;padding:26px;display:flex;flex-direction:column;gap:17px">
+          <div style="display:flex;align-items:baseline;gap:10px"><h3 style="margin:0;font:600 20px/1 'IBM Plex Sans';color:#F7F4EE">Linux</h3><span style="font:400 10.5px/1 'IBM Plex Mono';color:#BDB6A6">x86_64 · glibc 2.31+</span></div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <a href="https://github.com/RhyChaw/aurium/releases/latest" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A4335;padding:16px 18px">AppImage<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">portable</span></a>
+            <a href="https://github.com/RhyChaw/aurium/releases/latest" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A4335;padding:16px 18px">Debian / Ubuntu<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">.deb</span></a>
+          </div>
+          <div style="border-top:1px solid #332F26;padding-top:14px;font:400 11.5px/1 'IBM Plex Mono';color:#BDB6A6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:#F5C35A">$ </span>curl -fsSL aurium.sh/install | sh</div>
+        </div>
+
+        <div style="border:1px dashed #4A4335;padding:26px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:baseline;gap:10px"><h3 style="margin:0;font:600 20px/1 'IBM Plex Sans';color:#BDB6A6">Windows</h3><span style="font:400 10.5px/1 'IBM Plex Mono';color:#8A8474">not built yet</span></div>
+          <p style="margin:0;font:400 13px/1.68 'IBM Plex Sans';color:#BDB6A6;text-wrap:pretty">I do not own a Windows machine, so there is nothing to test a build against, and I would rather ship nothing than ship something broken. The Tauri shell should build for it as is.</p>
+          <a href="https://github.com/RhyChaw/aurium/issues/new?labels=platform&amp;title=Windows%20build" style="align-self:flex-start;font:600 12.5px/1 'IBM Plex Sans';color:#16140F;background:#C68F2C;padding:12px 16px;border:none">Ask for a Windows build</a>
+          <p style="margin:0;font:400 12px/1.6 'IBM Plex Sans';color:#8A8474">Or build it yourself. <code style="font:400 11px 'IBM Plex Mono';color:#F5C35A">cargo tauri build</code> in <code style="font:400 11px 'IBM Plex Mono';color:#F5C35A">desktop/</code>.</p>
+        </div>
+      </div>
+
+      <p style="margin:0;text-align:center;font:400 12.5px/1.7 'IBM Plex Sans';color:#BDB6A6">Or skip the app entirely. <code style="font:400 11.5px 'IBM Plex Mono';color:#F5C35A">aurium daemon</code> and open <code style="font:400 11.5px 'IBM Plex Mono';color:#F5C35A">127.0.0.1:7770</code> in a browser. Same dashboard, same everything.</p>
+    </div>
+  </div>
+
+  <!-- REQUEST CHANGES -->
+  <div id="request">
+    <div style="max-width:1220px;margin:0 auto;padding:64px 32px 46px;display:flex;flex-direction:column;gap:30px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:44px;align-items:end">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <span style="font:500 10px/1 'IBM Plex Mono';letter-spacing:.26em;text-transform:uppercase;color:#7A5510">No. 08 · request changes</span>
+          <h2 style="margin:0;font:400 clamp(28px,4.2vw,46px)/1.08 'Instrument Serif',serif;max-width:18ch">Tell me what it should do instead</h2>
+        </div>
+        <p style="margin:0;font:400 14.5px/1.7 'IBM Plex Sans';color:#3A362D;max-width:52ch;text-wrap:pretty">Built in the open and shaped by whoever uses it. Missing a platform, an adapter, a provider? Think a panel is wrong? Say so. These all land in the same place.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:1px;background:#DCD5C6;border:1px solid #16140F">
+        <sc-for list="{{ asks }}" as="a" hint-placeholder-count="4">
+          <a href="{{ a.href }}" style="background:#F7F4EE;padding:24px;display:flex;flex-direction:column;gap:10px;border:none">
+            <span style="font:500 9.5px/1 'IBM Plex Mono';letter-spacing:.16em;text-transform:uppercase;color:{{ a.tagColor }}">{{ a.tag }}</span>
+            <h3 style="margin:0;font:600 15.5px/1.3 'IBM Plex Sans';color:#16140F">{{ a.title }}</h3>
+            <p style="margin:0;font:400 12.5px/1.66 'IBM Plex Sans';color:#5C574D;text-wrap:pretty">{{ a.body }}</p>
+            <span style="margin-top:2px;font:500 11.5px/1 'IBM Plex Mono';color:#7A5510">{{ a.cta }} &rarr;</span>
+          </a>
+        </sc-for>
+      </div>
+    </div>
+    <div style="border-top:1px solid #16140F">
+      <div style="max-width:1220px;margin:0 auto;padding:26px 32px;display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+        <img src="logo.svg" alt="" style="width:26px;height:21px;image-rendering:pixelated;flex:0 0 auto">
+        <span style="font:400 18px/1 'Instrument Serif',serif">Aurium</span>
+        <span style="font:400 11.5px/1 'IBM Plex Mono';color:#5C574D">MIT · open source · {{ version }}</span>
+        <span style="font:400 11.5px/1 'IBM Plex Mono';color:#5C574D">by <a href="https://github.com/RhyChaw" style="color:#7A5510;border-bottom:1px solid rgba(122,85,16,.3)">@RhyChaw</a></span>
+        <div style="margin-left:auto;display:flex;gap:20px;flex-wrap:wrap;font:500 12px/1 'IBM Plex Sans'">
+          <a href="https://github.com/RhyChaw/aurium" style="color:#16140F;border:none">Source</a>
+          <a href="https://github.com/RhyChaw/aurium/blob/main/LICENSE" style="color:#16140F;border:none">License</a>
+          <a href="https://github.com/RhyChaw/aurium/blob/main/api/openapi.yaml" style="color:#16140F;border:none">API</a>
+          <a href="https://github.com/RhyChaw/aurium/releases" style="color:#16140F;border:none">Releases</a>
+          <a href="#request" style="color:#7A5510;border:none">Request a change</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;version&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;v0.4.0&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;stars&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;1.2k&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    let s = 3310099;
+    const rnd = () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+
+    const D = ["#7AA6DD", "#C9A678", "#86C08A", "#D9AC54", "#E0866F"];
+    const KEYS = ["agents", "cntrs", "context", "tools", "apprv"];
+    const DENS = [0.62, 0.3, 0.42, 0.5, 0.12];
+
+    // 0..1000 is drawn twice across a 2000 wide strip, so the scroll loops seamlessly
+    const lanes = D.map((color, i) => {
+      const base = 19 + i * 38;
+      const half = [];
+      for (let x = 0; x < 1000; x += 11) {
+        if (rnd() > DENS[i]) continue;
+        const h = Math.max(2, rnd() * 26);
+        half.push({ x: +x.toFixed(1), h: +h.toFixed(1) });
+      }
+      const ticks = [];
+      for (const t of half) ticks.push({ x: t.x, y: +(base - t.h / 2).toFixed(1), h: t.h });
+      for (const t of half) ticks.push({ x: t.x + 1000, y: +(base - t.h / 2).toFixed(1), h: t.h });
+      return { color, base, label: KEYS[i], ticks };
+    });
+
+    const MQ = [
+      ["reviewer-3", "au/pr-guard", "needs you", "#97341F"],
+      ["planner", "au/rail-perf", "working", "#8A6212"],
+      ["indexer", "au/ctx-reindex", "working", "#3B6EA5"],
+      ["refactorer", "mx/split-router", "working", "#3B6EA5"],
+      ["test-writer", "mx/cover-auth", "needs you", "#97341F"],
+      ["designer", "at/nav-pass", "working", "#3B6EA5"],
+      ["a11y-audit", "at/axe-sweep", "working", "#3B6EA5"],
+      ["migrator", "au/schema-13", "done", "#2F6F4F"],
+      ["billing", "lg/proration", "needs you", "#97341F"],
+      ["reconciler", "lg/close-books", "working", "#3B6EA5"],
+      ["docs", "au/docs-pass", "starting", "#8A6212"],
+      ["fuzzer", "au/fuzz-json", "done", "#2F6F4F"],
+    ].map(([name, branch, state, color]) => ({ name, branch, state, color }));
+    const marquee = MQ.concat(MQ);
+
+    const projects = [
+      ["aurium", "#E0866F", "#F2EFEA", "6"],
+      ["mercury-api", "#7AA6DD", "#C8C3D1", "5"],
+      ["atlas-web", "#D9AC54", "#C8C3D1", "4"],
+      ["ledger", "#6CC79A", "#C8C3D1", "3"],
+    ].map(([name, color, nameColor, count]) => ({ name, color, nameColor, count }));
+
+    const BAR = { attention: "#E0866F", working: "#7AA6DD", starting: "#D9AC54", done: "#6CC79A" };
+    const PR = { attention: "#E0866F", open: "#D9AC54", working: "transparent", starting: "transparent", done: "#6CC79A" };
+    const GOLD = "linear-gradient(180deg,#FFF0C2 0%,#F5C35A 32%,#D8A038 64%,#7C5615 100%)";
+
+    const tiles = [
+      ["reviewer-3", "blocked", "au/pr-guard", "#412", "2m", "attention"],
+      ["planner", "open", "au/rail-perf", "#409", "now", "open"],
+      ["indexer", "context", "au/ctx-reindex", "", "12s", "working"],
+      ["docs", "starting", "au/docs-pass", "", "4s", "starting"],
+      ["migrator", "merged", "au/schema-13", "#402", "18m", "done"],
+      ["fuzzer", "green", "au/fuzz-json", "#398", "1h", "done"],
+    ].map(([name, state, branch, pr, last, band]) => ({
+      name, state, branch, pr, last,
+      border: band === "open" ? "#6B5220" : band === "attention" ? "#E0866F" : "#232130",
+      bg: band === "open"
+        ? "linear-gradient(90deg,rgba(245,195,90,.09),rgba(245,195,90,.02))"
+        : band === "attention" ? "#141119" : "#101016",
+      nameColor: band === "open" ? "#FFE9A8" : "#F2EFEA",
+      stateColor: band === "open" ? "#C79A47" : band === "attention" ? "#E0866F" : "#9B95A5",
+      prColor: pr ? PR[band] : "transparent",
+      barBg: band === "open" ? GOLD : BAR[band],
+    }));
+
+    const term = [
+      ["12:04:07", "planner", "#7AA6DD", "go test ./internal/api/... -run Rail -bench ."],
+      ["12:04:09", "planner", "#7AA6DD", "BenchmarkRailPaint-10   1284   918452 ns/op   412 B/op"],
+      ["12:04:11", "planner", "#7AA6DD", "ok  github.com/rhychaw/aurium/internal/api  2.418s"],
+      ["12:04:12", "indexer", "#86C08A", "context: reindexed 1,912 chunks (aurium, aurium-docs)"],
+      ["12:04:18", "reviewer-3", "#E0866F", "guard: push to protected branch refused, opening PR"],
+      ["12:04:18", "reviewer-3", "#E0866F", "approval required: net.http.post api.github.com"],
+      ["12:04:22", "docs", "#D9AC54", "container up · worktree au/docs-pass cloned"],
+    ].map(([ts, who, color, text]) => ({ ts, who, color, text }));
+
+    const facts = [
+      ["MIT", "license", "#FFE9A8"],
+      ["Go", "one binary", "#F7F4EE"],
+      ["No bundler", "vanilla frontend", "#F7F4EE"],
+      ["127.0.0.1", "only surface", "#F7F4EE"],
+      ["OpenAPI", "documented boundary", "#F7F4EE"],
+    ].map(([value, label, color]) => ({ value, label, color }));
+
+    const pillars = [
+      ["01 · fleet", "#3B6EA5", "Peripheral vision",
+        "Every project's agents in one rail, coloured by state. It answers whether anything is on fire, including in a project you are not looking at."],
+      ["02 · worktrees", "#7A5C3E", "No mixed git trees",
+        "Agents sharing one working tree is where parallel agent work usually dies. Half staged files, a rebase on top of edits nobody committed, a merge nobody can untangle. Every agent here gets its own worktree and branch, so their trees never touch."],
+      ["03 · approvals", "#97341F", "Nothing escalates quietly",
+        "Capabilities an agent does not hold are held at the daemon and put in an inbox. You decide, and the held call then executes."],
+      ["04 · loops", "#5F7F5A", "Loop engineering, not prompting",
+        "A run leaves a branch, a transcript, a token bill and a CI result. Change one thing about how an agent runs and the next run tells you whether it worked."],
+      ["05 · cost", "#8A6212", "Spend where you'll see it",
+        "Tokens and price per agent, model and project, on the same screen as the work itself."],
+    ].map(([tag, tagColor, title, body]) => ({ tag, tagColor, title, body }));
+
+    const approvals = [
+      ["net.http.post → api.stripe.com/v1/refunds", "expires in 42s", true,
+        "Refunding a test charge while verifying the webhook replay path.", "test-writer · mercury-api"],
+      ["secrets.read → AWS_SECRET_ACCESS_KEY", "expires in 6m", false,
+        "Needs to sign a pre-signed URL to reproduce the reported upload failure.", "billing · ledger"],
+    ].map(([cap, expiry, soon, reason, who]) => ({
+      cap, expiry, reason, who,
+      expColor: soon ? "#97341F" : "#5C574D",
+      border: soon ? "#C98F7E" : "#DCD5C6",
+      bg: soon ? "#FBEEEA" : "#FFFFFF",
+    }));
+
+    const useCases = [
+      ["01", "Fan a refactor across repositories",
+        "A project is a set of repositories worked on together. Point six agents at the same interface change and watch six branches converge, instead of tracking six terminal tabs.",
+        "3 repos · 6 agents"],
+      ["02", "Run agents in parallel without merge hell",
+        "Two agents in one checkout is a race on the index and the working tree. Aurium gives each its own worktree off the same repository, so they commit in parallel and you resolve real conflicts at the pull request, not half written files on disk.",
+        "one worktree each"],
+      ["03", "Engineer the loop, not the prompt",
+        "Change the guard hooks, the context budget, the adapter, the sandbox, then compare the next run's branch, transcript, token bill and CI result against the last one. The whole point is that a run is measurable.",
+        "loop engineering"],
+      ["04", "Leave a long job running overnight",
+        "Migrations, test backfill, dependency bumps. The window stays open, the pulse keeps the record, and a native notification fires the moment one needs a human.",
+        "unattended"],
+      ["05", "Run Claude and Codex side by side",
+        "Each agent is bound to one provider account for its whole life. Give the same task to two adapters and compare the branches, not the marketing.",
+        "claude · codex · shell"],
+      ["06", "Keep a lid on what agents can reach",
+        "Every network call, secret read and write outside the worktree is a decision you make, with the reason the agent gave, before it happens.",
+        "capability gating"],
+    ].map(([n, title, body, tag]) => ({ n, title, body, tag }));
+
+    const steps = [
+      ["1", "Start the daemon", "It writes a host token to ~/.aurium/token and listens on 127.0.0.1:7770. Nothing is exposed off the machine.", "aurium daemon"],
+      ["2", "Register a repository", "Run init inside any git repository and it appears as a standalone project, guard hooks and aurium.yaml installed.", "aurium init"],
+      ["3", "Spawn agents", "Each gets a container, a worktree and a branch of its own, on whichever adapter and account you chose.", "aurium spawn claude"],
+      ["4", "Watch, or take the wheel", "The window shows every agent at once. When you want a terminal instead, attach to the container.", "aurium attach ct_4a91"],
+    ].map(([n, title, body, cmd]) => ({ n, title, body, cmd }));
+
+    const asks = [
+      ["platform", "#7A5510", "Ask for a platform",
+        "Windows, arm64 Linux, anything else. Tell me you need it and it gets built.",
+        "Open a platform issue", "https://github.com/RhyChaw/aurium/issues/new?labels=platform"],
+      ["feature", "#3B6EA5", "Request a feature",
+        "A new agent adapter, a provider, a panel that should exist. Describe the workflow, not the button.",
+        "Open a feature request", "https://github.com/RhyChaw/aurium/issues/new?labels=feature"],
+      ["bug", "#97341F", "Report something broken",
+        "Wrong state colour, a stuck approval, a container that will not die. Include what the daemon logged.",
+        "Open a bug report", "https://github.com/RhyChaw/aurium/issues/new?labels=bug"],
+      ["design", "#5F7F5A", "Argue with the design",
+        "The panels and defaults are opinions. If one is wrong for how you work, say which and why.",
+        "Start a discussion", "https://github.com/RhyChaw/aurium/discussions"],
+    ].map(([tag, tagColor, title, body, cta, href]) => ({ tag, tagColor, title, body, cta, href }));
+
+    return {
+      version: this.props.version ?? "v0.4.0",
+      stars: this.props.stars ?? "1.2k",
+      lanes, marquee, projects, tiles, term, facts, pillars, approvals, useCases, steps, asks,
+    };
+  }
+}
+</script>
+</body>
+</html>
