@@ -38,7 +38,7 @@ export function renderUsage(host) {
       el("p.coverage", u.coverage),
 
       el("div.usage-totals",
-        total(usd(t.cost_usd), "priced spend", u.pricing?.note),
+        total(usd(t.cost_usd), "priced spend", u.pricing?.note, true),
         total(compact((t.input_tokens ?? 0) + (t.output_tokens ?? 0)), "tokens",
           `${num(t.input_tokens)} in · ${num(t.output_tokens)} out`),
         total(compact(t.unpriced_tokens), "unpriced tokens",
@@ -59,9 +59,9 @@ export function renderUsage(host) {
         ". Anything else is counted and shown as unpriced.")));
 }
 
-function total(value, label, sub) {
+function total(value, label, sub, gold) {
   return el("div.total", { title: sub ?? "" },
-    el("span.total-value", value),
+    el("span.total-value", { class: gold ? "is-gold" : "" }, value),
     el("span.total-label", label),
     sub ? el("span.total-sub", sub) : null);
 }

@@ -24,7 +24,7 @@ import { renderProviders, reloadProviders } from "./views/providers.js";
 import { renderEvents } from "./views/events.js";
 import { renderSetup, reloadPreflight } from "./views/setup.js";
 import { recordEvent, stopHeartbeat } from "./views/heartbeat.js";
-import { refreshProjectAgents, refreshTranscript, refreshAllAgents } from "./views/rail.js";
+import { openProject, refreshProjectAgents, refreshTranscript, refreshAllAgents } from "./views/rail.js";
 
 const PANELS = {
   setup: { label: "Setup", render: renderSetup },
@@ -68,7 +68,7 @@ function renderChrome() {
   const pending = (state.approvals ?? []).filter((a) => (a.status ?? "pending") === "pending").length;
 
   mount($("#tabs"), ORDER.map((key) =>
-    el("button.tab", {
+    el("button.side-item", {
       class: state.panel === key ? "is-active" : "",
       onclick: () => selectPanel(key),
     },
@@ -77,8 +77,16 @@ function renderChrome() {
         ? el("span.count", String(pending))
         : null)));
 
+  // The sidebar's project list. Rendered here rather than in a view because
+  // it is chrome: it is visible whichever panel is open.
+  mount($("#side-projects"), (state.projects ?? []).map((p) =>
+    el("button.side-project", {
+      class: p.id === state.openProject ? "is-open" : "",
+      onclick: () => openProject(p.id),
+    }, p.name)));
+
   const conn = $("#conn");
-  conn.className = `conn conn-${state.conn}`;
+  conn.className = state.conn === "live" ? "pill-live" : "pill-attn";
   conn.textContent = state.conn === "live" ? "live"
     : state.conn === "connecting" ? "connecting" : "reconnecting";
 
