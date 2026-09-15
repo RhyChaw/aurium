@@ -67,15 +67,15 @@
 
         <div style="display:flex;flex-direction:column;gap:13px;min-width:0">
           <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <a href="#download" style="display:inline-flex;align-items:center;gap:11px;font:600 14px/1 'IBM Plex Sans';background:#16140F;color:#F7F4EE;padding:17px 24px;border:none">Download for macOS<span style="font:400 11px 'IBM Plex Mono';color:#C68F2C">.dmg</span></a>
-            <a href="#download" style="display:inline-flex;align-items:center;gap:11px;font:600 14px/1 'IBM Plex Sans';color:#16140F;border:1px solid #16140F;padding:17px 24px">Download for Linux<span style="font:400 11px 'IBM Plex Mono';color:#7A5510">.AppImage</span></a>
+            <a href="#download" style="display:inline-flex;align-items:center;gap:11px;font:600 14px/1 'IBM Plex Sans';background:#16140F;color:#F7F4EE;padding:17px 24px;border:none">Get started<span style="font:400 11px 'IBM Plex Mono';color:#C68F2C">clone &amp; run</span></a>
+            <a href="https://github.com/RhyChaw/aurium" style="display:inline-flex;align-items:center;gap:11px;font:600 14px/1 'IBM Plex Sans';color:#16140F;border:1px solid #16140F;padding:17px 24px">Read the source<span style="font:400 11px 'IBM Plex Mono';color:#7A5510">MIT</span></a>
           </div>
           <div style="display:flex;align-items:center;gap:11px;border:1px solid #CFC7B6;background:#FFFFFF;padding:13px 15px">
             <span style="font:400 12.5px/1 'IBM Plex Mono';color:#7A5510">$</span>
-            <span style="font:400 12.5px/1 'IBM Plex Mono';color:#3A362D;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">brew install rhychaw/tap/aurium</span>
-            <span style="margin-left:auto;font:500 10px/1 'IBM Plex Mono';color:#5C574D;border:1px solid #CFC7B6;padding:5px 9px;flex:0 0 auto">copy</span>
+            <span id="hero-cmd" style="font:400 12.5px/1.5 'IBM Plex Mono';color:#3A362D;word-break:break-all">git clone https://github.com/RhyChaw/aurium &amp;&amp; cd aurium &amp;&amp; ./setup.sh</span>
+            <span onclick="navigator.clipboard.writeText(document.getElementById('hero-cmd').textContent).then(()=>{this.textContent='copied';setTimeout(()=>this.textContent='copy',1600)})" style="margin-left:auto;font:500 10px/1 'IBM Plex Mono';color:#5C574D;border:1px solid #CFC7B6;padding:5px 9px;flex:0 0 auto;cursor:pointer;user-select:none">copy</span>
           </div>
-          <p style="margin:0;max-width:46ch;font:400 12.5px/1.62 'IBM Plex Sans';color:#5C574D;text-wrap:pretty">No Windows build yet. I have no Windows machine to test one on. <a href="https://github.com/RhyChaw/aurium/issues/new?labels=platform">Ask for one</a> and I'll cut it.</p>
+          <p style="margin:0;max-width:46ch;font:400 12.5px/1.62 'IBM Plex Sans';color:#5C574D;text-wrap:pretty">Builds from source on macOS and Linux; setup.sh installs a pinned Go toolchain if you have none. No Windows yet — I have no Windows machine to test one on. <a href="https://github.com/RhyChaw/aurium/issues/new?labels=platform">Ask for one</a> and I'll cut it.</p>
         </div>
       </div>
     </div>
@@ -488,19 +488,19 @@
         <div style="border:1px solid #6B5220;background:linear-gradient(180deg,rgba(245,195,90,.12),#1D1A13);padding:26px;display:flex;flex-direction:column;gap:17px;box-shadow:0 24px 64px -32px rgba(245,195,90,.45)">
           <div style="display:flex;align-items:baseline;gap:10px"><h3 style="margin:0;font:600 20px/1 'IBM Plex Sans';color:#FFE9A8">macOS</h3><span style="font:400 10.5px/1 'IBM Plex Mono';color:#C68F2C">11 Big Sur or later</span></div>
           <div style="display:flex;flex-direction:column;gap:9px">
-            <a href="https://github.com/RhyChaw/aurium/releases/latest" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';background:linear-gradient(180deg,#FFF6DC,#FFE9A8 22%,#D8A038 68%,#A87A22);background-size:100% 220%;animation:melt 8s ease-in-out infinite alternate;color:#2A1C05;padding:16px 18px;border:none">Apple Silicon<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';opacity:.72">.dmg · arm64</span></a>
-            <a href="https://github.com/RhyChaw/aurium/releases/latest" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A3510;padding:16px 18px">Intel<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">.dmg · x86_64</span></a>
+            <a href="https://github.com/RhyChaw/aurium" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';background:linear-gradient(180deg,#FFF6DC,#FFE9A8 22%,#D8A038 68%,#A87A22);background-size:100% 220%;animation:melt 8s ease-in-out infinite alternate;color:#2A1C05;padding:16px 18px;border:none">Clone the repo<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';opacity:.72">arm64 or Intel</span></a>
+            <a href="https://github.com/RhyChaw/aurium#run-it" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A3510;padding:16px 18px">Setup guide<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">README</span></a>
           </div>
-          <div style="border-top:1px solid #332F26;padding-top:14px;font:400 11.5px/1 'IBM Plex Mono';color:#BDB6A6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:#F5C35A">$ </span>brew install rhychaw/tap/aurium</div>
+          <div style="border-top:1px solid #332F26;padding-top:14px;font:400 11.5px/1 'IBM Plex Mono';color:#BDB6A6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:#F5C35A">$ </span>./setup.sh</div>
         </div>
 
         <div style="border:1px solid #4A4335;background:#1D1A13;padding:26px;display:flex;flex-direction:column;gap:17px">
           <div style="display:flex;align-items:baseline;gap:10px"><h3 style="margin:0;font:600 20px/1 'IBM Plex Sans';color:#F7F4EE">Linux</h3><span style="font:400 10.5px/1 'IBM Plex Mono';color:#BDB6A6">x86_64 · glibc 2.31+</span></div>
           <div style="display:flex;flex-direction:column;gap:9px">
-            <a href="https://github.com/RhyChaw/aurium/releases/latest" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A4335;padding:16px 18px">AppImage<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">portable</span></a>
-            <a href="https://github.com/RhyChaw/aurium/releases/latest" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A4335;padding:16px 18px">Debian / Ubuntu<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">.deb</span></a>
+            <a href="https://github.com/RhyChaw/aurium" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A4335;padding:16px 18px">Clone the repo<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">x86_64 or arm64</span></a>
+            <a href="https://github.com/RhyChaw/aurium#run-it" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A4335;padding:16px 18px">Setup guide<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">README</span></a>
           </div>
-          <div style="border-top:1px solid #332F26;padding-top:14px;font:400 11.5px/1 'IBM Plex Mono';color:#BDB6A6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:#F5C35A">$ </span>curl -fsSL aurium.sh/install | sh</div>
+          <div style="border-top:1px solid #332F26;padding-top:14px;font:400 11.5px/1 'IBM Plex Mono';color:#BDB6A6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:#F5C35A">$ </span>./setup.sh</div>
         </div>
 
         <div style="border:1px dashed #4A4335;padding:26px;display:flex;flex-direction:column;gap:14px">
@@ -555,7 +555,7 @@
 </div>
 
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;version&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;v0.4.0&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;stars&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;1.2k&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;version&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;0.1.0-dev&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;stars&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;1&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
 class Component extends DCLogic {
   renderVals() {
     let s = 3310099;
@@ -713,8 +713,8 @@ class Component extends DCLogic {
     ].map(([tag, tagColor, title, body, cta, href]) => ({ tag, tagColor, title, body, cta, href }));
 
     return {
-      version: this.props.version ?? "v0.4.0",
-      stars: this.props.stars ?? "1.2k",
+      version: this.props.version ?? "0.1.0-dev",
+      stars: this.props.stars ?? "1",
       lanes, marquee, projects, tiles, term, facts, pillars, approvals, useCases, steps, asks,
     };
   }
