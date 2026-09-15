@@ -143,13 +143,24 @@ exactly the same either way; only the conversation is not, under `host`.
 (`internal/store/tokens.go`) and is called from nowhere in production code.
 The in-container shim expects `/run/aurium/token` and `$AURIUM_TOKEN`; nothing
 writes either. This predates host placement and is not a defect introduced by
-it — it affects both placements equally, since both reach the gateway the same
-way. It means the MCP gateway path cannot authenticate today, for the
-in-container agent as much as for a host-placed one: `aurium_exec` and every
-other gateway tool are wired and tested, but a caller with no minted token has
-nothing to present. Host placement is otherwise structurally complete and
-still cannot reach the gateway until token minting exists. That is a separate
-piece of work, not something this design closes.
+it: the gap itself is identical under both placements, since both reach the
+gateway the same way. The *blast radius* is not. An in-container agent with no
+token loses the gateway tools and keeps its own `Bash`, so it remains useful
+for project work and the missing token shows up as tools that are absent. A
+host-placed agent has its shell denied as well, so the same missing token
+leaves it with no tools and nothing to fall back on — and the failure is
+silent: with `--mcp-config` naming an unauthorized server, `claude -p
+--output-format json` returns `"is_error": false` and empty
+`permission_denials`, which Aurium would record as an ordinary reply.
+
+That asymmetry is why host placement fails fast rather than degrading.
+`Prepare` refuses to write an MCP config with an empty token (returning
+`agent.ErrNoHostToken`) instead of writing `Authorization: Bearer `, and every
+host turn preflights the endpoint its own config names with one authenticated
+`tools/list` before it starts. Host placement is otherwise structurally
+complete and cannot run at all until token minting exists — which is the
+intended state, not a regression. Token minting remains a separate piece of
+work, not something this design closes.
 
 **The wall is cooperative, not kernel-enforced.** `--disallowedTools` is the
 agent's own runtime honouring a flag, not a namespace refusing a syscall. For
