@@ -306,10 +306,37 @@ func newStatusCmd() *cobra.Command {
 	}
 }
 
+// doctorOK is the one place that decides whether results mean the machine
+// can run Aurium: a failing optional check does not count against it, a
+// failing required one always does. Both the human table and --json exit
+// wiring call this, so they cannot drift apart.
+func doctorOK(results []preflight.Result) bool {
+	for _, r := range results {
+		if !r.OK && r.Severity != string(preflight.Optional) {
+			return false
+		}
+	}
+	return true
+}
+
+// writeDoctorJSON encodes results as JSON to w — the payload a caller like
+// CI parses — and only then reports the command's verdict as an error, so
+// the full diagnostic is always written even when the command is about to
+// fail. A failing required check yields an *ExitError; a failing optional
+// one does not.
+func writeDoctorJSON(w io.Writer, results []preflight.Result) error {
+	if err := json.NewEncoder(w).Encode(results); err != nil {
+		return err
+	}
+	if !doctorOK(results) {
+		return &ExitError{Code: CodeUsage}
+	}
+	return nil
+}
+
 // renderDoctor prints results and reports whether the machine is usable.
 // Optional failures are printed but do not fail the command.
 func renderDoctor(w io.Writer, results []preflight.Result) bool {
-	ok := true
 	for _, r := range results {
 		switch {
 		case r.OK:
@@ -317,14 +344,13 @@ func renderDoctor(w io.Writer, results []preflight.Result) bool {
 		case r.Severity == string(preflight.Optional):
 			fmt.Fprintf(w, "  warn  %s: %s\n", r.Name, r.Error)
 		default:
-			ok = false
 			fmt.Fprintf(w, "  FAIL  %s: %s\n", r.Name, r.Error)
 		}
 		if !r.OK && r.Remedy != "" {
 			fmt.Fprintf(w, "        fix: %s\n", r.Remedy)
 		}
 	}
-	return ok
+	return doctorOK(results)
 }
 
 func newDoctorCmd() *cobra.Command {
@@ -341,7 +367,7 @@ func newDoctorCmd() *cobra.Command {
 			results := preflight.Run(cmd.Context(), preflight.Checks(home, addr))
 
 			if jsonOut {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(results)
+				return writeDoctorJSON(cmd.OutOrStdout(), results)
 			}
 
 			fmt.Fprintln(cmd.OutOrStdout(), "Aurium doctor")
