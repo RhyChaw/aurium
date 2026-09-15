@@ -125,6 +125,21 @@ func (d *Delegation) Delegate(ctx context.Context, req gateway.DelegateRequest) 
 func (d *Delegation) fork(ctx context.Context, master store.Container, masterAgent store.Agent,
 	cfg *config.Config, adapterName string, req gateway.DelegateRequest) (gateway.DelegateResult, error) {
 
+	// Fork provisioning for a host-placed worker does not exist yet. Fork's
+	// Create runs with NoAgent, so nothing chooses an agent id in advance and
+	// nothing writes the worker's host MCP config; its first turn would die
+	// on `Invalid MCP configuration`, an error naming neither delegation nor
+	// placement. Refusing here, by name, is the honest version of the same
+	// outcome — and it names the way through, which is a mode that works.
+	if cfg != nil && cfg.Sandbox.AgentPlacement == config.PlacementHost {
+		return gateway.DelegateResult{}, fmt.Errorf(
+			"runtime: fork-mode delegation is not supported under agent_placement %q: "+
+				"a forked worker gets no host MCP config, so its first turn would fail with "+
+				"no way to tell why. Use mode \"serial\" (the worker runs headless inside "+
+				"your container), or set sandbox.agent_placement to %q for this project",
+			config.PlacementHost, config.PlacementInContainer)
+	}
+
 	// A worker branches from the master's current state, so it starts from
 	// work the master has already done rather than from the base branch.
 	branch := uniqueBranch(ctx, d.Manager, master, req.Title)
@@ -144,12 +159,6 @@ func (d *Delegation) fork(ctx context.Context, master store.Container, masterAge
 	// Start the agent first, then link it to its delegator. Creating the row
 	// up front would put two agents in the container and trip the "one
 	// interactive agent" check that startAgent performs (D15).
-	//
-	// A forked worker's own MCP config for host placement is not written
-	// here (Fork's Create ran with NoAgent, so nothing chose an id for it in
-	// advance) — a known gap of fork-mode delegation under agent_placement:
-	// host, left for follow-up work; it does not affect the primary,
-	// non-delegated agent this task exists to wire up.
 	workerAgent, err := d.Manager.startAgent(ctx, worker, adapterName, store.RoleWorker, "", "", cfg,
 		agent.StartOpts{Prompt: req.Prompt})
 	if err != nil {

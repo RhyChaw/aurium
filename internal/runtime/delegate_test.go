@@ -320,3 +320,86 @@ func gitLog(t *testing.T, dir string) string {
 var _ = driver.ExecOpts{}
 var _ = agent.StartOpts{}
 var _ = events.Event{}
+
+// A forked worker under host placement gets no host MCP config: Fork's Create
+// runs with NoAgent, so nothing chooses an agent id in advance and nothing
+// writes the file --mcp-config will name. Its first turn would die on
+// `Invalid MCP configuration` — an error naming neither delegation nor
+// placement. Refusing up front is the same outcome said honestly, and it
+// names a mode that works.
+func TestForkDelegationIsRefusedUnderHostPlacement(t *testing.T) {
+	f := newDelegation(t)
+	ctx := context.Background()
+
+	hostCfg, err := config.Parse([]byte(`
+version: 1
+project: {name: app, base_branch: main}
+sandbox:
+  driver: local
+  agent: shell
+  agent_placement: host
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.del.Config = func(context.Context, string) (*config.Config, error) { return hostCfg, nil }
+
+	before, err := f.store.ListContainers(ctx, f.project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = f.del.Delegate(ctx, gateway.DelegateRequest{
+		MasterAgentID: f.agent.ID, MasterContainerID: f.master.ID,
+		Title: "Write auth tests", Mode: ModeFork, Prompt: "do it",
+	})
+	if err == nil {
+		t.Fatal("fork delegation under host placement must be refused, not left to fail cryptically")
+	}
+	for _, want := range []string{"fork", config.PlacementHost, "serial"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal must mention %q so the agent can act on it: %v", want, err)
+		}
+	}
+
+	// And nothing half-made is left behind: no worker container, no branch.
+	after, err := f.store.ListContainers(ctx, f.project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) {
+		t.Errorf("a refused delegation must create no container: %d -> %d", len(before), len(after))
+	}
+}
+
+// Serial mode is the way through, and it is unaffected: it runs the worker
+// headless inside the master's container, which host placement never touches.
+func TestSerialDelegationStillWorksUnderHostPlacement(t *testing.T) {
+	f := newDelegation(t)
+	ctx := context.Background()
+
+	hostCfg, err := config.Parse([]byte(`
+version: 1
+project: {name: app, base_branch: main}
+sandbox:
+  driver: local
+  agent: shell
+  agent_placement: host
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.del.Config = func(context.Context, string) (*config.Config, error) { return hostCfg, nil }
+	f.mgr.Adapters["echo"] = &echoAdapter{envelope: envelope("done", false, 1, 1)}
+
+	res, err := f.del.Delegate(ctx, gateway.DelegateRequest{
+		MasterAgentID: f.agent.ID, MasterContainerID: f.master.ID,
+		Title: "small thing", Mode: ModeSerial, Adapter: "echo", Prompt: "do it",
+	})
+	if err != nil {
+		t.Fatalf("serial delegation must still work under host placement: %v", err)
+	}
+	if res.Mode != ModeSerial {
+		t.Errorf("mode = %q", res.Mode)
+	}
+}
