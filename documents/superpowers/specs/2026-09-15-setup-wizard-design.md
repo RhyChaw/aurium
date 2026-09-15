@@ -112,8 +112,13 @@ Remedies come in exactly two kinds:
 
 New checks: the Go toolchain; **port availability, naming the owning user and
 pid** when the address is held, and suppressing the `--restart` suggestion
-when the holder belongs to someone else; Docker daemon; `tmux` (optional);
-free disk space. A `--json` flag makes the whole table consumable by CI.
+when the holder belongs to someone else; Docker daemon; and `tmux`
+(optional). A `--json` flag makes the whole table consumable by CI.
+
+A free-disk-space check was specified and then dropped: reading it needs
+`syscall.Statfs`, whose fields differ in type between darwin and linux, so it
+costs build-tagged platform files or a new dependency. Neither is worth paying
+for a check that no observed failure has yet called for.
 
 ## Stage 2 — the first-run wizard
 
