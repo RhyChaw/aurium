@@ -357,6 +357,7 @@ func newDoctorCmd() *cobra.Command {
 	var (
 		jsonOut bool
 		addr    string
+		fix     bool
 	)
 
 	cmd := &cobra.Command{
@@ -364,7 +365,13 @@ func newDoctorCmd() *cobra.Command {
 		Short: "Check that this machine can run Aurium",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			home, _ := app.Home()
-			results := preflight.Run(cmd.Context(), preflight.Checks(home, addr))
+			checks := preflight.Checks(home, addr)
+			var results []preflight.Result
+			if fix {
+				results = preflight.Fix(cmd.Context(), checks)
+			} else {
+				results = preflight.Run(cmd.Context(), checks)
+			}
 
 			if jsonOut {
 				return writeDoctorJSON(cmd.OutOrStdout(), results)
@@ -422,6 +429,7 @@ func newDoctorCmd() *cobra.Command {
 	// doctor checks the address the daemon would bind, so it has to know it. The
 	// default matches `aurium up`.
 	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:7770", "loopback address to check")
+	cmd.Flags().BoolVar(&fix, "fix", false, "apply automatic remedies")
 	return cmd
 }
 

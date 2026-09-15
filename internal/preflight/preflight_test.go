@@ -121,3 +121,46 @@ func TestRun(t *testing.T) {
 		t.Errorf("failing check should have RemedyKind='manual', got: %q", results[1].RemedyKind)
 	}
 }
+
+func TestFixAppliesAutoRemediesAndRerunsTheProbe(t *testing.T) {
+	fixed := false
+	checks := []Check{{
+		Name:     "creatable",
+		Severity: Required,
+		Probe: func(ctx context.Context) error {
+			if fixed {
+				return nil
+			}
+			return errors.New("missing")
+		},
+		Remedy: Remedy{Kind: Auto, Fix: func(ctx context.Context) error { fixed = true; return nil }},
+	}}
+
+	results := Fix(context.Background(), checks)
+	if len(results) != 1 || !results[0].OK {
+		t.Fatalf("an applied Auto remedy must leave the check passing: %+v", results)
+	}
+}
+
+// A Manual remedy must never be executed on the user's behalf.
+func TestFixNeverRunsManualRemedies(t *testing.T) {
+	ran := false
+	checks := []Check{{
+		Name:     "privileged",
+		Severity: Required,
+		Probe:    func(ctx context.Context) error { return errors.New("blocked") },
+		Remedy: Remedy{
+			Kind:    Manual,
+			Command: "sudo xcodebuild -license accept",
+			Fix:     func(ctx context.Context) error { ran = true; return nil },
+		},
+	}}
+
+	results := Fix(context.Background(), checks)
+	if ran {
+		t.Error("Fix must never execute a Manual remedy")
+	}
+	if results[0].OK {
+		t.Error("a Manual-remedy failure must stay failed")
+	}
+}

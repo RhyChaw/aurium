@@ -70,6 +70,23 @@ func Run(ctx context.Context, checks []Check) []Result {
 	return out
 }
 
+// Fix applies every Auto remedy whose check is failing, then re-probes. Manual
+// remedies are never executed: they are the ones that need sudo, a GUI or a
+// TTY, and a setup tool that escalates on your behalf is not one you should
+// pipe from curl.
+func Fix(ctx context.Context, checks []Check) []Result {
+	for _, c := range checks {
+		if c.Remedy.Kind != Auto || c.Remedy.Fix == nil {
+			continue
+		}
+		if c.Probe(ctx) == nil {
+			continue
+		}
+		_ = c.Remedy.Fix(ctx) // a failed fix simply leaves the re-probe failing
+	}
+	return Run(ctx, checks)
+}
+
 // BinaryWorks reports whether name is on PATH *and* actually runs.
 //
 // exec.LookPath answers "is there a file with this name", which is a different
