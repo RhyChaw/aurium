@@ -209,3 +209,32 @@ func TestClientReportsUpstreamExitWithItsOutput(t *testing.T) {
 		t.Fatalf("the error should carry the server's own output so the cause is visible, got: %v", err)
 	}
 }
+
+// The stdout reader and the stderr pump are separate goroutines, and only the
+// former closes done. A server that closes stdout before writing its parting
+// message therefore used to be reported as "(no output)" — the exact bare
+// failure exitError exists to prevent. This pins the ordering down: stdout
+// closes first, so done is closed well before the explanation is written.
+func TestClientWaitsForStderrBeforeExplainingAnExit(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no shell available")
+	}
+	client, err := SpawnStdio(ctx, sh,
+		[]string{"-c", "exec 1>&-; sleep 0.2; echo 'fatal: missing GITHUB_TOKEN' >&2; exit 1"}, os.Environ())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	_, err = client.Call(ctx, "tools/list", map[string]any{})
+	if err == nil {
+		t.Fatal("expected an error from a dead upstream")
+	}
+	if !strings.Contains(err.Error(), "GITHUB_TOKEN") {
+		t.Fatalf("the error must wait for the stderr pipe to drain, got: %v", err)
+	}
+}
