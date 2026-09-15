@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/RhyChaw/aurium/internal/config"
 	"github.com/RhyChaw/aurium/internal/runtime/driver"
 )
 
@@ -25,13 +26,26 @@ func runHost(ctx context.Context, cmd []string, o driver.ExecOpts) (driver.ExecR
 		return driver.ExecResult{}, errors.New("runtime: empty command")
 	}
 
+	// Host placement cannot honour User (would require privilege escalation,
+	// which this design forbids) or TTY (meaningless for a headless turn).
+	// A zero value is silent for compatibility with existing callers; any
+	// explicit request is an error.
+	if o.User != "" {
+		return driver.ExecResult{}, fmt.Errorf(
+			"runtime: agent_placement %q cannot run commands as a different user", config.PlacementHost)
+	}
+	if o.TTY {
+		return driver.ExecResult{}, fmt.Errorf(
+			"runtime: agent_placement %q cannot allocate a TTY", config.PlacementHost)
+	}
+
 	// Resolved up front so a missing binary is reported by name, rather than
 	// as an opaque failure from the run itself.
 	path, err := exec.LookPath(cmd[0])
 	if err != nil {
 		return driver.ExecResult{}, fmt.Errorf(
 			"runtime: %s is not installed on this host, which agent_placement %q requires: %w",
-			cmd[0], "host", err)
+			cmd[0], config.PlacementHost, err)
 	}
 
 	c := exec.CommandContext(ctx, path, cmd[1:]...)
@@ -45,6 +59,14 @@ func runHost(ctx context.Context, cmd []string, o driver.ExecOpts) (driver.ExecR
 
 	runErr := c.Run()
 	res := driver.ExecResult{Stdout: stdout.String(), Stderr: stderr.String()}
+
+	// Check if the context was cancelled or timed out. The process was SIGKILLed
+	// by CommandContext, so the exit code is meaningless. Return an error that
+	// distinguishes a cancelled turn from a failed command, but include the
+	// partial output for diagnosis.
+	if err := ctx.Err(); err != nil {
+		return res, fmt.Errorf("runtime: turn on host was cancelled: %w", err)
+	}
 
 	// A command that ran and failed is a result. Only a command that could not
 	// be run at all is an error.

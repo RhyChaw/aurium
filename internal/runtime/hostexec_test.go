@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/RhyChaw/aurium/internal/runtime/driver"
 )
@@ -60,5 +61,48 @@ func TestRunHostPassesEnvAndStdin(t *testing.T) {
 	}
 	if strings.TrimSpace(res.Stdout) != "set-piped" {
 		t.Errorf("env or stdin lost: %q", res.Stdout)
+	}
+}
+
+// A cancelled or timed-out turn is an error, distinct from a failed command.
+// The killed process has no meaningful exit code, so we return an error that
+// names the cancellation and includes ctx.Err(), but preserve partial output.
+func TestRunHostIdentifiesCancelledTurn(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	_, err := runHost(ctx, []string{"sh", "-c", "sleep 5"}, driver.ExecOpts{})
+	if err == nil {
+		t.Fatal("a cancelled turn must be an error")
+	}
+	if !strings.Contains(err.Error(), "cancelled") {
+		t.Errorf("error must identify cancellation, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "context") {
+		t.Errorf("error must include context error, got: %v", err)
+	}
+}
+
+// Host placement cannot honour User requests, which would require
+// privilege escalation forbidden by design.
+func TestRunHostRejectsUserRequest(t *testing.T) {
+	_, err := runHost(context.Background(), []string{"echo", "test"},
+		driver.ExecOpts{User: "other"})
+	if err == nil {
+		t.Fatal("User request must be an error")
+	}
+	if !strings.Contains(err.Error(), "cannot run commands as a different user") {
+		t.Errorf("error must name the constraint, got: %v", err)
+	}
+}
+
+// Host placement cannot honour TTY requests, which are meaningless for headless turns.
+func TestRunHostRejectsTTYRequest(t *testing.T) {
+	_, err := runHost(context.Background(), []string{"echo", "test"},
+		driver.ExecOpts{TTY: true})
+	if err == nil {
+		t.Fatal("TTY request must be an error")
+	}
+	if !strings.Contains(err.Error(), "cannot allocate a TTY") {
+		t.Errorf("error must name the constraint, got: %v", err)
 	}
 }
