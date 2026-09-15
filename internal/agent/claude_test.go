@@ -61,10 +61,18 @@ func TestPrepareWritesTheHostMCPConfigAtMCPConfigPath(t *testing.T) {
 
 	want := MCPConfigPath(auriumHome, "ag_123")
 	cfg := readFile(t, want)
-	for _, sub := range []string{`"mcpServers"`, `"aurium"`, `"AURIUM_URL": "http://127.0.0.1:7770"`, `"AURIUM_TOKEN": "tok_secret"`} {
+	// Shape confirmed against `claude mcp add --transport http --scope
+	// project` (see the task-6 report): HTTP transport, no command to spawn.
+	for _, sub := range []string{
+		`"mcpServers"`, `"aurium"`, `"type": "http"`,
+		`"url": "http://127.0.0.1:7770"`, `"Authorization": "Bearer tok_secret"`,
+	} {
 		if !strings.Contains(cfg, sub) {
 			t.Errorf("host mcp config missing %q; got:\n%s", sub, cfg)
 		}
+	}
+	if strings.Contains(cfg, `"command"`) {
+		t.Errorf("a host-sandboxed turn must spawn no binary at all; got:\n%s", cfg)
 	}
 }
 

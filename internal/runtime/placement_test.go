@@ -95,10 +95,13 @@ func TestCreateWithHostPlacementWritesTheHostMCPConfig(t *testing.T) {
 		t.Fatalf("host mcp config not written at the path HeadlessCommand will read: %v", err)
 	}
 	got := string(b)
-	for _, want := range []string{`"aurium"`, `"AURIUM_URL": "http://127.0.0.1:7770"`} {
+	for _, want := range []string{`"aurium"`, `"type": "http"`, `"url": "http://127.0.0.1:7770"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("host mcp config missing %q; got:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, `"command"`) {
+		t.Errorf("a host-sandboxed turn must spawn no binary; got:\n%s", got)
 	}
 }
 
@@ -139,5 +142,50 @@ func TestCreateWithHostPlacementStillWritesTheContainerInstructions(t *testing.T
 	}
 	if !strings.Contains(string(md), "@") {
 		t.Errorf("CLAUDE.md must still import the context projection:\n%s", md)
+	}
+}
+
+// recreate (used by Restore) is Prepare's only other call site, and it
+// chooses its own new agent id independently of Create's. The new agent it
+// starts must get its own host mcp config at that new id, same as Create's
+// agent does.
+func TestRecreateWithHostPlacementWritesTheHostMCPConfig(t *testing.T) {
+	f, _ := hostPlacementFixture(t)
+	c := f.create("feature", func(o *CreateOpts) { o.Adapter = "claude" })
+	ctx := context.Background()
+
+	before, err := f.store.ListAgents(ctx, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before) != 1 {
+		t.Fatalf("want exactly one agent before recreate, got %d", len(before))
+	}
+
+	if err := f.mgr.recreate(ctx, c.ID, f.cfg, false); err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := f.store.ListAgents(ctx, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 1 {
+		t.Fatalf("want exactly one agent after recreate, got %d", len(after))
+	}
+	if after[0].ID == before[0].ID {
+		t.Fatal("recreate must replace the old agent row with a new one, not keep the old id")
+	}
+
+	path := agent.MCPConfigPath(f.mgr.SnapshotHome, after[0].ID)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("recreate must write the new agent's host mcp config at its own id: %v", err)
+	}
+	got := string(b)
+	for _, want := range []string{`"aurium"`, `"type": "http"`, `"url": "http://127.0.0.1:7770"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("recreated host mcp config missing %q; got:\n%s", want, got)
+		}
 	}
 }

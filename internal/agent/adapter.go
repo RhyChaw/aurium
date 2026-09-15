@@ -254,24 +254,29 @@ func mcpServerJSON(command, auriumURL string) string {
 }
 
 // hostMCPServerJSON is mcpServerJSON's counterpart for a turn that runs on the
-// host rather than in a container. It names the same one MCP server (D16),
-// pointed at the daemon's host-reachable address, and carries the bearer
-// token directly in its env: a host process has no /run/aurium/token to read
-// it from instead, so this file is the only place left to put it.
-func hostMCPServerJSON(command, auriumURL, token string) string {
+// host rather than in a container. It spawns no binary at all: the
+// aurium-mcp shim exists only to bridge stdio to HTTP from inside a
+// container, where nothing can reach the daemon's socket directly (§10's
+// host placement design). A process already running on the host has no such
+// problem — it names the daemon's /mcp endpoint over HTTP transport
+// directly. Shape confirmed empirically against `claude mcp add
+// --transport http --scope project aurium <url> --header "Authorization:
+// Bearer <token>"` and reading the .mcp.json it wrote (see the task-6
+// report): {"mcpServers": {"aurium": {"type": "http", "url": ..., "headers":
+// {"Authorization": "Bearer ..."}}}}.
+func hostMCPServerJSON(auriumURL, token string) string {
 	return fmt.Sprintf(`{
   "mcpServers": {
     "aurium": {
-      "command": %q,
-      "args": [],
-      "env": {
-        "AURIUM_URL": %q,
-        "AURIUM_TOKEN": %q
+      "type": "http",
+      "url": %q,
+      "headers": {
+        "Authorization": %q
       }
     }
   }
 }
-`, command, auriumURL, token)
+`, auriumURL, "Bearer "+token)
 }
 
 // writeHostMCPConfig writes the file agent.MCPConfigPath names — the ONE
@@ -283,8 +288,7 @@ func writeHostMCPConfig(p Projection) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	command := filepath.Join(p.AuriumHome, "bin", "aurium-mcp")
-	return os.WriteFile(path, []byte(hostMCPServerJSON(command, p.HostAuriumURL, p.Token)), 0o644)
+	return os.WriteFile(path, []byte(hostMCPServerJSON(p.HostAuriumURL, p.Token)), 0o644)
 }
 
 // projectionHeader explains the imported file to whoever opens it.

@@ -3,8 +3,6 @@ package runtime
 import (
 	"context"
 	"strings"
-
-	"github.com/RhyChaw/aurium/internal/runtime/driver"
 )
 
 // Execution adapts the runtime to gateway.Executor, the same way Delegation
@@ -36,8 +34,7 @@ func (e *Execution) ExecInContainer(ctx context.Context, containerID, command st
 		return "", 0, err
 	}
 
-	res, err := drv.Exec(ctx, c.RuntimeID, []string{"sh", "-c", command},
-		driver.ExecOpts{Workdir: c.Worktree})
+	res, err := drv.Exec(ctx, c.RuntimeID, []string{"sh", "-c", command}, execOptsFor(c))
 	if err != nil {
 		return "", 0, err
 	}
