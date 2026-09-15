@@ -29,6 +29,9 @@ type echoAdapter struct {
 	exitCode int
 	// lastCmd records what was asked for, so continuation can be asserted.
 	lastCmd []string
+	// lastOpts records the ExecOpts a turn was built with, so placement can
+	// be asserted without parsing argv.
+	lastOpts agent.ExecOpts
 }
 
 func (e *echoAdapter) Name() string                   { return "echo" }
@@ -44,6 +47,7 @@ func (e *echoAdapter) Capabilities() agent.Caps {
 }
 
 func (e *echoAdapter) HeadlessCommand(prompt string, o agent.ExecOpts) []string {
+	e.lastOpts = o
 	body := strings.ReplaceAll(e.envelope, "PROMPT", prompt)
 	script := fmt.Sprintf("cat <<'EOF'\n%s\nEOF\n", body)
 	if e.exitCode != 0 {
@@ -303,6 +307,79 @@ func TestConverseRefusesAnAdapterThatCannotAnswer(t *testing.T) {
 	// The message has to name the way out, which is a terminal.
 	if !strings.Contains(err.Error(), "aurium attach "+c.ID) {
 		t.Fatalf("the refusal must point at attach: %v", err)
+	}
+}
+
+// In-container placement is the default and must behave exactly as it did
+// before host placement existed: no resolver is even required for it, and a
+// turn must not enable the shell denial meant only for the host.
+func TestConverseInContainerPlacementLeavesHostSandboxedFalse(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	// m.Config is intentionally left nil: this is the state of every caller
+	// before this field existed, and it must resolve to in-container.
+
+	if err := m.Converse(context.Background(), a.ID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if ad.lastOpts.HostSandboxed {
+		t.Error("in-container placement must not set HostSandboxed")
+	}
+	if ad.lastOpts.MCPConfigPath != "" {
+		t.Errorf("in-container placement must not set an MCP config path, got %q", ad.lastOpts.MCPConfigPath)
+	}
+}
+
+// Host placement is the one case where HeadlessCommand denies the agent's own
+// shell (§ agent.ExecOpts.HostSandboxed), which is the whole security property
+// of the design. If this is ever false under host placement, the agent's
+// shell runs fully enabled on the host.
+func TestConverseHostPlacementSetsHostSandboxedAndMCPConfigPath(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	m.SnapshotHome = t.TempDir()
+	m.Config = func(context.Context, string) (*config.Config, error) {
+		return &config.Config{Sandbox: config.Sandbox{AgentPlacement: config.PlacementHost}}, nil
+	}
+
+	if err := m.Converse(context.Background(), a.ID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if !ad.lastOpts.HostSandboxed {
+		t.Fatal("host placement must set HostSandboxed")
+	}
+	want := agent.MCPConfigPath(m.SnapshotHome, a.ID)
+	if ad.lastOpts.MCPConfigPath != want {
+		t.Errorf("MCPConfigPath = %q, want %q", ad.lastOpts.MCPConfigPath, want)
+	}
+	if ad.lastOpts.MCPConfigPath == "" {
+		t.Fatal("host placement must never produce an empty MCPConfigPath")
+	}
+}
+
+// HostSandboxed and MCPConfigPath must be set together or not at all: the
+// combination of HostSandboxed=true with an empty path makes HeadlessCommand
+// emit a malformed `--mcp-config ""`, which fails far from its cause. Rather
+// than let that happen, a turn that cannot name the path fails clearly here.
+func TestConverseHostPlacementErrorsRatherThanEmitAnEmptyMCPConfigPath(t *testing.T) {
+	ad := &echoAdapter{envelope: envelope("ok", false, 1, 1)}
+	m, _, a := converseFixture(t, ad)
+	m.SnapshotHome = "" // no way to name the path
+	m.Config = func(context.Context, string) (*config.Config, error) {
+		return &config.Config{Sandbox: config.Sandbox{AgentPlacement: config.PlacementHost}}, nil
+	}
+
+	err := m.Converse(context.Background(), a.ID, "hello")
+	if err == nil {
+		t.Fatal("host placement with no way to name the MCP config path must be an error")
+	}
+	if ad.lastCmd != nil {
+		t.Error("the turn must not have run at all")
+	}
+
+	got, _ := m.Store.GetAgent(context.Background(), a.ID)
+	if got.Status == store.AgentRunning {
+		t.Errorf("status must not be left running after the turn failed to start, got %q", got.Status)
 	}
 }
 

@@ -117,6 +117,17 @@ type Adapter interface {
 	Capabilities() Caps
 }
 
+// MCPConfigPath is where a host-sandboxed turn's MCP config lives:
+// ~/.aurium/agents/<agentID>/mcp.json.
+//
+// This is the ONE place that composes this path. The runtime points
+// ExecOpts.MCPConfigPath at exactly what this returns, and Prepare writes the
+// file there; both must call this rather than build the path themselves, or
+// they can silently disagree and an agent starts with no tools and no error.
+func MCPConfigPath(auriumHome, agentID string) string {
+	return filepath.Join(auriumHome, "agents", agentID, "mcp.json")
+}
+
 // Registry maps adapter names to implementations.
 type Registry map[string]Adapter
 

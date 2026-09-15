@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/RhyChaw/aurium/internal/config"
 	"github.com/RhyChaw/aurium/internal/runtime/driver"
 )
 
@@ -104,5 +105,45 @@ func TestRunHostRejectsTTYRequest(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "cannot allocate a TTY") {
 		t.Errorf("error must name the constraint, got: %v", err)
+	}
+}
+
+type fakeDriver struct {
+	driver.Driver // embedded: only Exec is called here
+	called        bool
+}
+
+func (f *fakeDriver) Exec(ctx context.Context, id string, cmd []string, o driver.ExecOpts) (driver.ExecResult, error) {
+	f.called = true
+	return driver.ExecResult{Stdout: "from-container"}, nil
+}
+
+func TestExecTurnUsesTheContainerByDefault(t *testing.T) {
+	f := &fakeDriver{}
+	res, err := execTurn(context.Background(), config.PlacementInContainer, f, "rt_1",
+		[]string{"echo", "hi"}, driver.ExecOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !f.called {
+		t.Error("in-container placement must go through the driver")
+	}
+	if res.Stdout != "from-container" {
+		t.Errorf("result not passed through: %q", res.Stdout)
+	}
+}
+
+func TestExecTurnUsesTheHostWhenPlacementSaysSo(t *testing.T) {
+	f := &fakeDriver{}
+	res, err := execTurn(context.Background(), config.PlacementHost, f, "rt_1",
+		[]string{"echo", "from-host"}, driver.ExecOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.called {
+		t.Error("host placement must not touch the driver")
+	}
+	if !strings.Contains(res.Stdout, "from-host") {
+		t.Errorf("host output lost: %q", res.Stdout)
 	}
 }

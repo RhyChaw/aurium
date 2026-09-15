@@ -60,6 +60,12 @@ type Manager struct {
 	// or no connected account, Aurium falls back to aurium.yaml's
 	// env_passthrough, which is how it worked before accounts existed.
 	Credentials Credentials
+
+	// Config resolves a project's aurium.yaml. Optional: a Converse call with
+	// none set — every caller before this field existed — resolves placement
+	// as config.PlacementInContainer, which is the behaviour those callers
+	// already had.
+	Config func(ctx context.Context, projectID string) (*config.Config, error)
 }
 
 // Credentials is the runtime's view of provider accounts. The interface exists

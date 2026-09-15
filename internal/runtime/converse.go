@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/RhyChaw/aurium/internal/agent"
+	"github.com/RhyChaw/aurium/internal/config"
 	"github.com/RhyChaw/aurium/internal/events"
 	"github.com/RhyChaw/aurium/internal/ipc"
 	"github.com/RhyChaw/aurium/internal/store"
@@ -101,10 +102,39 @@ func (m *Manager) Converse(ctx context.Context, agentID, prompt string) error {
 	_ = m.Store.UpdateAgentStatus(ctx, agentID, store.AgentRunning)
 	m.emit(ctx, events.AgentActive, c, a, map[string]any{"turn": "started"})
 
+	// Where this turn's process runs. Defaults to in-container: no resolver
+	// wired, or the resolver erroring, must reproduce exactly the behaviour
+	// every caller had before this field existed.
+	placement := config.PlacementInContainer
+	if m.Config != nil {
+		if cfg, err := m.Config(ctx, c.ProjectID); err == nil && cfg != nil {
+			placement = cfg.Sandbox.AgentPlacement
+		}
+	}
+	hostSandboxed := placement == config.PlacementHost
+
+	// Both fields are set from this one decision, or neither is. Setting
+	// HostSandboxed with an empty MCPConfigPath would make HeadlessCommand
+	// emit a malformed `--mcp-config ""` — a failure far from its cause — so
+	// an MCP config path we cannot name is a hard error instead.
+	mcpConfigPath := ""
+	if hostSandboxed {
+		if m.SnapshotHome == "" {
+			_ = m.Store.UpdateAgentStatus(ctx, agentID, store.AgentError)
+			return fmt.Errorf(
+				"runtime: agent_placement %q needs an MCP config path, but this manager has no SnapshotHome set",
+				config.PlacementHost)
+		}
+		mcpConfigPath = agent.MCPConfigPath(m.SnapshotHome, agentID)
+	}
+
 	// Continue the conversation when there is one to continue. The first turn
 	// has no session, and `--continue` against nothing is an error rather than
 	// a fresh start.
-	opts := agent.ExecOpts{Model: a.Model, Continue: m.hasSpoken(ctx, agentID)}
+	opts := agent.ExecOpts{
+		Model: a.Model, Continue: m.hasSpoken(ctx, agentID),
+		HostSandboxed: hostSandboxed, MCPConfigPath: mcpConfigPath,
+	}
 	cmd := adapter.HeadlessCommand(prompt, opts)
 	if len(cmd) == 0 {
 		_ = m.Store.UpdateAgentStatus(ctx, agentID, store.AgentIdle)
@@ -144,7 +174,7 @@ func (m *Manager) Converse(ctx context.Context, agentID, prompt string) error {
 	runCtx, cancel := context.WithTimeout(ctx, ConversationTimeout)
 	defer cancel()
 
-	res, err := drv.Exec(runCtx, c.RuntimeID, cmd, runOpts)
+	res, err := execTurn(runCtx, placement, drv, c.RuntimeID, cmd, runOpts)
 	if err != nil {
 		// The agent is not broken as an agent — the call failed — but the
 		// human needs to see it, so it goes in the transcript rather than only

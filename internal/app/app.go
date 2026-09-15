@@ -120,6 +120,10 @@ func Open(verbose bool) (*App, error) {
 	// recorder needs the bus and the bus needs the store.
 	mgr.IPC = msgs
 	mgr.Usage = &meter{recorder: a.Usage}
+	// A turn reads the project's placement (in-container or host) fresh on
+	// every call, the same way Delegator does, rather than trusting whatever
+	// was true when the container was created.
+	mgr.Config = a.ConfigForProject
 	// The snapshot and delegation adapters need the app to resolve a
 	// project's config, so they are attached once it exists.
 	gw.Snapshots = &managerSnapshots{mgr: mgr, app: a}

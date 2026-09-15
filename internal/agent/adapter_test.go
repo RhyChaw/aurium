@@ -221,6 +221,19 @@ func TestResumeChangesTheClaudeCommand(t *testing.T) {
 	}
 }
 
+// MCPConfigPath is the one place that composes where a host-sandboxed turn's
+// MCP config lives. Both the runtime, which points --mcp-config at it, and
+// Prepare, which writes the file there, must call this rather than build the
+// path themselves — two independent compositions is how they silently
+// disagree and an agent starts with no tools and no error.
+func TestMCPConfigPathIsUnderAgentsAgentID(t *testing.T) {
+	got := MCPConfigPath("/home/user/.aurium", "ag_123")
+	want := filepath.Join("/home/user/.aurium", "agents", "ag_123", "mcp.json")
+	if got != want {
+		t.Errorf("MCPConfigPath = %q, want %q", got, want)
+	}
+}
+
 func readFile(t *testing.T, p string) string {
 	t.Helper()
 	return string(mustRead(t, p))

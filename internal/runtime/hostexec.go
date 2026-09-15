@@ -80,3 +80,16 @@ func runHost(ctx context.Context, cmd []string, o driver.ExecOpts) (driver.ExecR
 	}
 	return res, nil
 }
+
+// execTurn runs a turn where the project's placement says it should run.
+//
+// This one function is the whole of host placement. A turn ran inside the
+// container before only because converse.go called drv.Exec directly; putting
+// the choice here keeps it a setting rather than a second code path.
+func execTurn(ctx context.Context, placement string, drv driver.Driver, runtimeID string,
+	cmd []string, o driver.ExecOpts) (driver.ExecResult, error) {
+	if placement == config.PlacementHost {
+		return runHost(ctx, cmd, o)
+	}
+	return drv.Exec(ctx, runtimeID, cmd, o)
+}
