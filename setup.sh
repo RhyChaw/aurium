@@ -13,7 +13,28 @@
 # Deliberately POSIX sh with no make, no git and no python: on macOS all three
 # are disabled until the Xcode licence is accepted, which is one of the exact
 # conditions this script exists to survive.
+#
+#   ./setup.sh             daemon and dashboard
+#   ./setup.sh --desktop   also the native window, which needs a Rust toolchain
+#
+# --desktop is opt-in because Rust plus the Tauri CLI is roughly 1.5 GB and
+# several minutes of compiling, and most people running this want the daemon.
+# If you only want the app, do not build it — download the .dmg from Releases.
 set -eu
+
+WANT_DESKTOP=0
+for arg in "$@"; do
+	case "$arg" in
+	--desktop) WANT_DESKTOP=1 ;;
+	-h|--help)
+		say() { printf '%s\n' "$*"; }
+		say "usage: ./setup.sh [--desktop]"
+		say "  --desktop  also build the native window (installs Rust; ~1.5 GB)"
+		exit 0
+		;;
+	*) printf 'error: unknown option %s\n' "$arg" >&2; exit 2 ;;
+	esac
+done
 
 GO_VERSION=go1.27.1
 GO_FLOOR_MINOR=25
@@ -92,6 +113,40 @@ install_go() {
 	rm -rf "$tmp"
 }
 
+# build_desktop installs the Rust toolchain if absent and builds the native
+# window. Kept behind --desktop because it is by far the heaviest thing here:
+# roughly 1.5 GB and several minutes, against a daemon build measured in
+# seconds. rustup is invoked with --no-modify-path for the same reason the Go
+# install is: rewriting a stranger's shell profile unasked is not this script's
+# business.
+build_desktop() {
+	if [ "$OS" != "darwin" ] && [ "$OS" != "linux" ]; then
+		die "--desktop supports macOS and Linux only"
+	fi
+	if ! command -v cargo >/dev/null 2>&1 && [ ! -x "${HOME}/.cargo/bin/cargo" ]; then
+		say "installing the Rust toolchain (~1.5 GB, several minutes)"
+		curl --proto '=https' --proto-redir '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+			-o "${TMPDIR:-/tmp}/rustup-init.sh" || die "could not download rustup"
+		sh "${TMPDIR:-/tmp}/rustup-init.sh" -y --no-modify-path --profile minimal \
+			|| die "rustup install failed"
+		rm -f "${TMPDIR:-/tmp}/rustup-init.sh"
+	fi
+	export PATH="${HOME}/.cargo/bin:${PATH}"
+
+	if ! command -v cargo-tauri >/dev/null 2>&1; then
+		say "installing the Tauri CLI (compiles from source, a few minutes)"
+		cargo install tauri-cli --version '^2' --locked || die "tauri-cli install failed"
+	fi
+
+	say "building the native window"
+	# The bundle step is best-effort: create-dmg drives Finder through
+	# AppleScript to lay out the disk image window, which fails without
+	# automation permission. The .app is the thing that matters, and a
+	# released .dmg is built in CI where that problem does not arise.
+	( cd "${REPO_DIR}/desktop" && cargo tauri build ) || \
+		say "  note: bundling did not complete; the built app is under desktop/src-tauri/target/release/"
+}
+
 detect_platform
 
 fresh_install=0
@@ -142,6 +197,42 @@ done
 mkdir -p "${HOME}/.aurium/bin"
 cp bin/linux-amd64/aurium-mcp "${HOME}/.aurium/bin/aurium-mcp-linux-amd64"
 cp bin/linux-arm64/aurium-mcp "${HOME}/.aurium/bin/aurium-mcp-linux-arm64"
+
+# tmux is a host-side convenience: `aurium attach` uses it to drop you into a
+# running agent. Installing it needs no privileges when Homebrew is present,
+# so it is offered rather than merely reported. Homebrew itself is not
+# installed here — that needs sudo, and this script does not escalate.
+if ! command -v tmux >/dev/null 2>&1; then
+	if command -v brew >/dev/null 2>&1; then
+		say "installing tmux (host-side convenience for \`aurium attach\`)"
+		brew_log="${TMPDIR:-/tmp}/aurium-brew-tmux.log"
+		if brew install tmux >"$brew_log" 2>&1; then
+			say "  tmux installed"
+		else
+			# Show brew's own reason rather than telling someone to re-run the
+			# command that just failed. A Homebrew whose lock directory is not
+			# writable needs a chown this script will not perform, and "run brew
+			# install tmux" would fail identically — the kind of advice this
+			# project exists to stop giving.
+			say "  tmux install failed. Homebrew said:"
+			if ! grep -iE '^(Error|Warning):' "$brew_log" | head -3 | sed 's/^/    /'; then
+				tail -3 "$brew_log" | sed 's/^/    /'
+			fi
+			say "  Carrying on without it: tmux is optional, only aurium attach uses it."
+			say "  Full output: $brew_log"
+		fi
+	else
+		say "note: tmux is not installed and Homebrew is not here to install it."
+		say "  tmux is optional — only \`aurium attach\` uses it."
+		say "  To get both, install Homebrew first (it will ask for your password):"
+		say "    /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+		say "  then: brew install tmux"
+	fi
+fi
+
+if [ "$WANT_DESKTOP" -eq 1 ]; then
+	build_desktop
+fi
 
 say ""
 exec ./bin/aurium doctor --fix

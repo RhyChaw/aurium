@@ -299,3 +299,37 @@ func TestEveryAutoRemedyHasAFixAndEveryManualHasACommand(t *testing.T) {
 		}
 	}
 }
+
+// The daemon does not inherit a login shell's environment: launched from the
+// app bundle, or from a terminal opened before the profile line existed, PATH
+// lacks ~/.local/go/bin while the toolchain sits there perfectly usable. The
+// dashboard reported "go not installed" for a Go that setup.sh had installed —
+// a check answering a different question than the one it printed.
+func TestGoIsFoundWhereSetupInstallsItEvenWhenNotOnPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir()) // deliberately empty of any go
+
+	bin := filepath.Join(home, ".local", "go", "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(bin, "go")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\necho 'go version go1.27.1 darwin/arm64'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := goWorks(context.Background()); err != nil {
+		t.Fatalf("a usable go at %s must satisfy the check even off PATH: %v", fake, err)
+	}
+}
+
+// And when it genuinely is nowhere, the check must still fail — otherwise the
+// fix above would have turned the probe into one that cannot fail.
+func TestGoStillFailsWhenItIsNowhere(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+	if err := goWorks(context.Background()); err == nil {
+		t.Fatal("with no go on PATH and none installed, the check must fail")
+	}
+}
