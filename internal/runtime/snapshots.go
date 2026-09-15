@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/RhyChaw/aurium/internal/config"
+	"github.com/RhyChaw/aurium/internal/ids"
 	"github.com/RhyChaw/aurium/internal/runtime/driver"
 	"github.com/RhyChaw/aurium/internal/runtime/snapshot"
 	"github.com/RhyChaw/aurium/internal/store"
@@ -241,13 +242,20 @@ func (m *Manager) recreate(ctx context.Context, containerID string, cfg *config.
 	}
 	c.RuntimeID = runtimeID
 
-	if err := adapter.Prepare(agentProjection(m, c, home)); err != nil {
+	// Chosen here, before the agent row exists, for the same reason Create
+	// does: a host-sandboxed turn's MCP config is written by Prepare below,
+	// keyed by this id, and startAgentResuming must create the row with the
+	// same one or the two silently disagree.
+	agentID := ids.New(ids.Agent)
+	hostSandboxed := cfg.Sandbox.AgentPlacement == config.PlacementHost
+
+	if err := adapter.Prepare(agentProjection(m, c, home, hostSandboxed, agentID)); err != nil {
 		return err
 	}
 	if err := m.runHooks(ctx, drv, runtimeID, c.Worktree, spec.Env, cfg.Hooks.PostCreate); err != nil {
 		return fmt.Errorf("runtime: post_create hook after recreate: %w", err)
 	}
 
-	_, err = m.startAgentResuming(ctx, c, adapterName, role, resume)
+	_, err = m.startAgentResuming(ctx, c, adapterName, role, resume, cfg, agentID)
 	return err
 }

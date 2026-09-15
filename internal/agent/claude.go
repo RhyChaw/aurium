@@ -49,6 +49,19 @@ func (c *Claude) Prepare(p Projection) error {
 		mcpServerJSON(p.MCPCommand, p.AuriumURL)); err != nil {
 		return fmt.Errorf("agent/claude: write .claude.json: %w", err)
 	}
+
+	if p.HostSandboxed {
+		if err := ensureImport(p.Home, ".claude/CLAUDE.md",
+			hostPlacementNotice, projectionHeader); err != nil {
+			return fmt.Errorf("agent/claude: write host placement notice: %w", err)
+		}
+		// HeadlessCommand points --mcp-config at exactly this file
+		// (agent.MCPConfigPath); without writing it, a host-sandboxed turn's
+		// only tool is missing and it has no shell to fall back to either.
+		if err := writeHostMCPConfig(p); err != nil {
+			return fmt.Errorf("agent/claude: write host mcp config: %w", err)
+		}
+	}
 	return nil
 }
 

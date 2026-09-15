@@ -147,3 +147,17 @@ func TestExecTurnUsesTheHostWhenPlacementSaysSo(t *testing.T) {
 		t.Errorf("host output lost: %q", res.Stdout)
 	}
 }
+
+// Host placement has nothing to attach to, and spawning a REPL on the user's
+// own machine is the surprise Caps.Tmux already warns about.
+func TestHostPlacementStartsNoTmuxSession(t *testing.T) {
+	if wantsTmuxSession(config.PlacementHost, driver.Caps{Tmux: true}) {
+		t.Error("host placement must not start a tmux session even on a tmux-capable driver")
+	}
+	if !wantsTmuxSession(config.PlacementInContainer, driver.Caps{Tmux: true}) {
+		t.Error("in-container placement on a tmux driver must still get a session")
+	}
+	if wantsTmuxSession(config.PlacementInContainer, driver.Caps{Tmux: false}) {
+		t.Error("a driver without tmux never gets a session")
+	}
+}

@@ -144,7 +144,13 @@ func (d *Delegation) fork(ctx context.Context, master store.Container, masterAge
 	// Start the agent first, then link it to its delegator. Creating the row
 	// up front would put two agents in the container and trip the "one
 	// interactive agent" check that startAgent performs (D15).
-	workerAgent, err := d.Manager.startAgent(ctx, worker, adapterName, store.RoleWorker, "", "",
+	//
+	// A forked worker's own MCP config for host placement is not written
+	// here (Fork's Create ran with NoAgent, so nothing chose an id for it in
+	// advance) — a known gap of fork-mode delegation under agent_placement:
+	// host, left for follow-up work; it does not affect the primary,
+	// non-delegated agent this task exists to wire up.
+	workerAgent, err := d.Manager.startAgent(ctx, worker, adapterName, store.RoleWorker, "", "", cfg,
 		agent.StartOpts{Prompt: req.Prompt})
 	if err != nil {
 		// Leave the container: the human can inspect what went wrong, and
@@ -227,6 +233,13 @@ func (d *Delegation) serial(ctx context.Context, master store.Container, masterA
 		return gateway.DelegateResult{}, fmt.Errorf("runtime: adapter %q has no headless command", adapterName)
 	}
 
+	// drv.Exec directly, not execTurn: this builds an empty agent.ExecOpts
+	// above and so never carries HostSandboxed. That is not a placement gap
+	// to close — ModeSerial is documented above as running the worker
+	// headless inside the master's container, which predates host placement
+	// entirely. A delegated worker here never runs on the host and cannot
+	// weaken the property host placement protects; running in the container
+	// is the MORE isolated of the two, not less.
 	res, err := drv.Exec(ctx, master.RuntimeID, cmd, execOptsFor(master))
 	if err != nil {
 		return gateway.DelegateResult{}, fmt.Errorf("runtime: serial delegation: %w", err)

@@ -93,7 +93,12 @@ func Open(verbose bool) (*App, error) {
 		HomeRoot:     filepath.Join(home, "homes"),
 		SnapshotHome: home,
 		AuriumURL:    "http://host.docker.internal:7770",
-		DockerBin:    "docker",
+		// A host-sandboxed turn's own process runs on this machine, not in a
+		// container, so host.docker.internal — which only resolves inside one
+		// — cannot be its address for the same daemon (internal/daemon's
+		// DefaultAddr, which this mirrors: 127.0.0.1:7770).
+		HostAuriumURL: "http://127.0.0.1:7770",
+		DockerBin:     "docker",
 	}
 
 	cx := contextengine.New(st, bus)
@@ -132,6 +137,10 @@ func Open(verbose bool) (*App, error) {
 		Config: a.ConfigForProject,
 		Usage:  &meter{recorder: a.Usage},
 	}
+	// Without this, aurium_exec answers every call with "not available" and
+	// host placement — whose whole design routes commands back into the
+	// container through this tool — cannot run a single one.
+	gw.Executor = &runtime.Execution{Manager: mgr}
 	return a, nil
 }
 

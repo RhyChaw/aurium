@@ -20,6 +20,7 @@ import (
 	"github.com/RhyChaw/aurium/internal/config"
 	"github.com/RhyChaw/aurium/internal/events"
 	"github.com/RhyChaw/aurium/internal/gitx"
+	"github.com/RhyChaw/aurium/internal/ids"
 	"github.com/RhyChaw/aurium/internal/ipc"
 	"github.com/RhyChaw/aurium/internal/runtime/driver"
 	"github.com/RhyChaw/aurium/internal/runtime/image"
@@ -45,6 +46,11 @@ type Manager struct {
 
 	// AuriumURL is what containers use to reach the daemon.
 	AuriumURL string
+	// HostAuriumURL is what a host-sandboxed turn's own process uses to reach
+	// the daemon. AuriumURL's host.docker.internal resolves only inside a
+	// container; a turn running directly on this machine needs the daemon's
+	// address as reached from here instead.
+	HostAuriumURL string
 	// DockerBin is echoed in attach commands shown to the user.
 	DockerBin string
 
@@ -270,6 +276,18 @@ func (m *Manager) Create(ctx context.Context, o CreateOpts) (store.Container, er
 	}
 	c.RuntimeID, c.Image, c.Network, c.Ports = runtimeID, spec.Image, spec.Network, ports
 
+	// A host-sandboxed turn's MCP config is keyed by agent id
+	// (agent.MCPConfigPath), but that id normally does not exist until
+	// startAgent below creates the row. Chosen here instead, it can be
+	// written into the projection now and carried into that same call, so
+	// Prepare and the agent it describes agree on one id rather than two.
+	agentID := ""
+	hostSandboxed := false
+	if !o.NoAgent {
+		agentID = ids.New(ids.Agent)
+		hostSandboxed = o.Config.Sandbox.AgentPlacement == config.PlacementHost
+	}
+
 	// The projection file and agent config land before any hook runs, so a
 	// post_create hook can already read CONTEXT.md.
 	projection := agent.Projection{
@@ -278,6 +296,11 @@ func (m *Manager) Create(ctx context.Context, o CreateOpts) (store.Container, er
 		MCPCommand:  "aurium-mcp",
 		AuriumURL:   m.AuriumURL,
 		Token:       o.Token,
+
+		HostSandboxed: hostSandboxed,
+		AgentID:       agentID,
+		AuriumHome:    m.SnapshotHome,
+		HostAuriumURL: m.HostAuriumURL,
 	}
 	if err := adapter.Prepare(projection); err != nil {
 		rollback()
@@ -308,8 +331,8 @@ func (m *Manager) Create(ctx context.Context, o CreateOpts) (store.Container, er
 	}
 
 	if !o.NoAgent {
-		if _, err := m.startAgent(ctx, c, o.Adapter, o.Role, o.Model, o.ProviderAccountID,
-			agent.StartOpts{}); err != nil {
+		if _, err := m.startAgent(ctx, c, o.Adapter, o.Role, o.Model, o.ProviderAccountID, o.Config,
+			agent.StartOpts{AgentID: agentID}); err != nil {
 			rollback()
 			return store.Container{}, err
 		}
@@ -487,13 +510,22 @@ func (m *Manager) StartAgent(ctx context.Context, containerID, adapterName, role
 	if err != nil {
 		return store.Agent{}, err
 	}
-	return m.startAgent(ctx, c, adapterName, role, model, "", agent.StartOpts{})
+	var cfg *config.Config
+	if m.Config != nil {
+		cfg, err = m.Config(ctx, c.ProjectID)
+		if err != nil {
+			return store.Agent{}, fmt.Errorf("runtime: could not determine agent placement: %w", err)
+		}
+	}
+	return m.startAgent(ctx, c, adapterName, role, model, "", cfg, agent.StartOpts{})
 }
 
 // startAgent launches one agent. accountID pins it to a connected provider
-// account; empty means "the default for this adapter".
+// account; empty means "the default for this adapter". cfg resolves the
+// project's placement (agent_placement); nil means in-container, the
+// behaviour every caller had before that setting existed.
 func (m *Manager) startAgent(ctx context.Context, c store.Container,
-	adapterName, role, model, accountID string, o agent.StartOpts) (store.Agent, error) {
+	adapterName, role, model, accountID string, cfg *config.Config, o agent.StartOpts) (store.Agent, error) {
 
 	adapter, ok := m.Adapters.Get(adapterName)
 	if !ok {
@@ -523,6 +555,7 @@ func (m *Manager) startAgent(ctx context.Context, c store.Container,
 	// into an existing container inherits that environment — so this records
 	// the attribution rather than re-delivering a secret.
 	a, err := m.Store.CreateAgent(ctx, store.Agent{
+		ID:                o.AgentID,
 		ContainerID:       c.ID,
 		Adapter:           adapterName,
 		Role:              role,
@@ -541,11 +574,17 @@ func (m *Manager) startAgent(ctx context.Context, c store.Container,
 	}
 	o.Model = model
 
-	// Only drivers that supervise sessions get an interactive agent launched.
-	// On a driver without tmux there is nothing to attach to, and spawning a
-	// REPL on the user's own machine would be a surprise rather than a
-	// feature; the agent row still exists so headless Exec and IPC work.
-	if drv.Capabilities().Tmux {
+	placement := config.PlacementInContainer
+	if cfg != nil {
+		placement = cfg.Sandbox.AgentPlacement
+	}
+
+	// Only drivers that supervise sessions get an interactive agent launched,
+	// and only in-container: host placement has no container to attach to,
+	// and spawning a REPL on the user's own machine would be a surprise
+	// rather than a feature. The agent row still exists either way, so
+	// headless Exec and IPC work.
+	if wantsTmuxSession(placement, drv.Capabilities()) {
 		session := &agent.Session{Driver: drv, ContainerID: c.RuntimeID, Name: a.TmuxSession}
 		if err := session.Start(ctx, adapter.LaunchCommand(o), nil, c.Worktree); err != nil {
 			// Record why, then surface it: a container with a dead agent is a
@@ -634,21 +673,30 @@ func (m *Manager) Destroy(ctx context.Context, containerID string, o DestroyOpts
 }
 
 // agentProjection builds the Projection an adapter's Prepare receives.
-func agentProjection(m *Manager, c store.Container, home string) agent.Projection {
+// hostSandboxed and agentID are only meaningful together: see the matching
+// comment in Create.
+func agentProjection(m *Manager, c store.Container, home string, hostSandboxed bool, agentID string) agent.Projection {
 	return agent.Projection{
 		Home:        home,
 		ContextPath: filepath.Join(c.Worktree, gitx.AuriumDir, "CONTEXT.md"),
 		MCPCommand:  "aurium-mcp",
 		AuriumURL:   m.AuriumURL,
+
+		HostSandboxed: hostSandboxed,
+		AgentID:       agentID,
+		AuriumHome:    m.SnapshotHome,
+		HostAuriumURL: m.HostAuriumURL,
 	}
 }
 
 // startAgentResuming starts an agent, optionally continuing its previous
 // conversation. Resume is what makes restore useful: the transcript lives in
-// $HOME, which the captured rootfs restored.
+// $HOME, which the captured rootfs restored. agentID must be the same id
+// agentProjection was given, so the agent this creates matches the MCP
+// config Prepare already wrote for it.
 func (m *Manager) startAgentResuming(ctx context.Context, c store.Container,
-	adapterName, role string, resume bool) (store.Agent, error) {
-	return m.startAgent(ctx, c, adapterName, role, "", "", agent.StartOpts{Resume: resume})
+	adapterName, role string, resume bool, cfg *config.Config, agentID string) (store.Agent, error) {
+	return m.startAgent(ctx, c, adapterName, role, "", "", cfg, agent.StartOpts{Resume: resume, AgentID: agentID})
 }
 
 // isUnsupported reports whether err is a driver capability gap rather than a

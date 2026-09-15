@@ -81,6 +81,15 @@ func runHost(ctx context.Context, cmd []string, o driver.ExecOpts) (driver.ExecR
 	return res, nil
 }
 
+// wantsTmuxSession reports whether to launch an interactive session.
+//
+// Two independent reasons not to, and both must hold to proceed: a driver
+// without tmux has no container to run it in, and host placement has no
+// container involved in the agent at all.
+func wantsTmuxSession(placement string, caps driver.Caps) bool {
+	return caps.Tmux && placement != config.PlacementHost
+}
+
 // execTurn runs a turn where the project's placement says it should run.
 //
 // This one function is the whole of host placement. A turn ran inside the
