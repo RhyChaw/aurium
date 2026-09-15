@@ -27,6 +27,21 @@ a container can be *stacked* on another and kept up to date by rebasing onto a
 ## Run it
 
 ```sh
+./setup.sh
+```
+
+On a clean clone, with no Go toolchain installed, that's the one command:
+it fetches a pinned, checksum-verified Go if `go` isn't already usable, builds
+the `aurium`, `auriumd` and `aurium-mcp` binaries with `CGO_ENABLED=0` (the
+SQLite driver is pure Go), and hands off to `aurium doctor --fix` to report
+and fix what it can on this machine. It never runs `sudo` and never writes
+outside `$HOME`, and it needs no `make`, `git` or `python3` — all three can be
+disabled by an unaccepted Xcode licence on a fresh macOS machine, which is
+exactly the condition it exists to survive.
+
+Once a toolchain is already set up, `make run` is the everyday command:
+
+```sh
 make run
 ```
 

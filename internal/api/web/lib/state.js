@@ -49,6 +49,15 @@ export const state = {
   providers: null,
   detected: null,
 
+  // --- setup wizard ---
+  // setupDismissed lives only in this in-memory store: it is not persisted, so
+  // a daemon that still has nothing in it opens back on the wizard next time
+  // the page loads. That is what makes the wizard re-enterable rather than a
+  // one-time gate.
+  setupDismissed: false,
+  preflight: null,
+  preflightError: null,
+
   booted: false,
 };
 

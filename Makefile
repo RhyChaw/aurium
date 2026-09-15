@@ -5,7 +5,13 @@ GO ?= go
 PKGS = ./...
 GOBIN ?= $(HOME)/sdk/gobin
 
-.PHONY: run run-web run-desktop build test test-race vet fmt lint tools clean
+.PHONY: run run-web run-desktop build test test-race vet fmt lint tools clean setup
+
+# One command from a clean clone. Delegates to setup.sh rather than the other
+# way round: make is one of the tools an unaccepted Xcode licence disables, so
+# the shell path has to work without it.
+setup:
+	./setup.sh
 
 # The one command. Starts the daemon and opens Aurium — in its own window if the
 # Rust toolchain is here, in a browser tab otherwise.

@@ -27,6 +27,11 @@ type StdioClient struct {
 
 	closeOnce sync.Once
 	done      chan struct{}
+	// stderrDone closes when the stderr pipe has drained. It is separate from
+	// done, which the stdout reader closes: the two pipes reach EOF in either
+	// order, and an explanation quoted before this closes is an explanation
+	// that may not have been scanned yet.
+	stderrDone chan struct{}
 	// stderr keeps the last lines the server printed, so a failure can be
 	// explained rather than reported as a bare timeout.
 	stderrTail *ringBuffer
@@ -60,6 +65,7 @@ func SpawnStdio(ctx context.Context, name string, args []string, env []string) (
 		cmd: cmd, stdin: stdin, stdout: scanner,
 		pending:    map[string]chan *Response{},
 		done:       make(chan struct{}),
+		stderrDone: make(chan struct{}),
 		stderrTail: newRingBuffer(20),
 	}
 	go c.readLoop()
@@ -96,6 +102,7 @@ func (c *StdioClient) readLoop() {
 }
 
 func (c *StdioClient) drainStderr(r io.ReadCloser) {
+	defer close(c.stderrDone)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		c.stderrTail.add(scanner.Text())
@@ -166,6 +173,14 @@ func (c *StdioClient) exitError(cause error) error {
 		if cause != nil {
 			return fmt.Errorf("mcp: write to %s: %w", c.cmd.Path, cause)
 		}
+	}
+	// done is closed by the stdout reader, which says nothing about whether
+	// the stderr pump has scanned the message we are about to quote. Waiting
+	// on done alone reports "(no output)" for a server that did explain
+	// itself — the bare failure this function exists to prevent.
+	select {
+	case <-c.stderrDone:
+	case <-time.After(250 * time.Millisecond):
 	}
 	return fmt.Errorf("mcp: %s exited; last output: %s", c.cmd.Path, c.stderrTail.String())
 }

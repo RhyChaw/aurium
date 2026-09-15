@@ -22,10 +22,12 @@ import { renderApprovals, reloadApprovals } from "./views/approvals.js";
 import { renderUsage, reloadUsage, reloadSpendStrip } from "./views/usage.js";
 import { renderProviders, reloadProviders } from "./views/providers.js";
 import { renderEvents } from "./views/events.js";
+import { renderSetup, reloadPreflight } from "./views/setup.js";
 import { recordEvent, stopHeartbeat } from "./views/heartbeat.js";
 import { refreshProjectAgents, refreshTranscript, refreshAllAgents } from "./views/rail.js";
 
 const PANELS = {
+  setup: { label: "Setup", render: renderSetup },
   workspace: { label: "Workspace", render: renderWorkspace },
   home: { label: "Projects", render: renderHome },
   approvals: { label: "Approvals", render: renderApprovals },
@@ -34,7 +36,16 @@ const PANELS = {
   events: { label: "Events", render: renderEvents },
 };
 
+// "setup" is deliberately absent: it is not a tab, see shouldOpenSetup below.
 const ORDER = ["workspace", "home", "approvals", "usage", "providers", "events"];
+
+// The wizard is a destination, not a tab: it earns the screen only on a
+// daemon with nothing in it, and only until the user skips it.
+function shouldOpenSetup() {
+  return !state.setupDismissed
+    && (state.projects ?? []).length === 0
+    && (state.providers ?? []).length === 0;
+}
 
 // ---- rendering ----
 
@@ -79,7 +90,14 @@ function renderChrome() {
   bar.hidden = !state.notice;
 }
 
-function selectPanel(key) {
+// Exported because the setup wizard's steps are navigation too, and going to
+// a panel is more than setting state.panel: each panel loads its own data on
+// arrival, and only this function does that. A view that writes
+// `update({ panel: "providers" })` lands on a panel that never fetched
+// anything — which is what made the wizard's "Open Providers" show an empty
+// grid and a GitHub card stuck on "checking…" with no event that could ever
+// resolve it.
+export function selectPanel(key) {
   // The notice reports the result of something the user just did on the panel
   // they were on. Carrying it to the next one would leave a stale sentence
   // over an unrelated screen.
@@ -198,7 +216,22 @@ async function bootRefresh() {
   await reloadProjects();
   await Promise.all([
     refreshAllAgents(), reloadApprovals(), pollHeartbeat(), reloadSpendStrip(),
+    loadProviderCount(),
   ]);
+}
+
+// shouldOpenSetup needs to know whether any provider account exists, which is
+// otherwise not fetched until the Providers tab is opened. Only the account
+// list is wanted here, not the heavier detect/GitHub calls reloadProviders
+// makes, and a failure here must not surface as a boot error — it just leaves
+// the routing decision conservative (no known accounts).
+async function loadProviderCount() {
+  try {
+    const { accounts } = await Aurium.providers();
+    update({ providers: accounts ?? [] });
+  } catch {
+    /* state.providers stays whatever it already was (null on first boot) */
+  }
 }
 
 async function main() {
@@ -221,10 +254,15 @@ async function main() {
     return;
   }
 
-  // Open the first project so the workspace is not empty on arrival, and land
-  // on Projects when there are none — the only useful thing to do then is make
-  // one.
-  if (state.projects.length) {
+  // A daemon with nothing in it — no projects, no provider accounts — opens
+  // on the wizard rather than an empty Workspace or Projects screen. Otherwise
+  // open the first project so the workspace is not empty on arrival, and land
+  // on Projects when there are none — the only useful thing to do then is
+  // make one.
+  if (shouldOpenSetup()) {
+    update({ panel: "setup" });
+    reloadPreflight();
+  } else if (state.projects.length) {
     update({ openProject: state.projects[0].id, panel: "workspace" });
   } else {
     update({ panel: "home" });
