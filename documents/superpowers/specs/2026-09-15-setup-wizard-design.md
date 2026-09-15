@@ -62,7 +62,7 @@ Stage 2 is where a human is finally looking at a screen.
 
 ## Stage 0 — `setup.sh`
 
-POSIX `sh` at the repo root, also servable as `curl -fsSL …/setup.sh | sh`.
+POSIX `sh` at the repo root, run from a checkout as `./setup.sh`.
 Targets `darwin|linux` × `arm64|amd64`. It does only what must precede a Go
 binary:
 
@@ -84,8 +84,22 @@ Two constraints are load-bearing. The script **must not require `make`**,
 because `make` is among the tools the Xcode licence disables; it calls
 `go build` directly, and the `Makefile` gains a `setup` target that delegates
 to the script rather than the other way round. And it **must never escalate
-privileges**, so that piping it from `curl` is a defensible thing to ask a
-stranger to do.
+privileges** and must never write outside `$HOME`, so that reading the whole
+script before running it is enough to decide whether to trust it.
+
+**Amended 2026-09-15 (`curl … | sh`).** An earlier draft of this section
+described the script as "also servable as `curl -fsSL …/setup.sh | sh`". It is
+not, and no version of it ever was. `REPO_DIR` derives from `$0`; piped from
+curl `$0` is `sh`, `REPO_DIR` becomes the caller's cwd, `go-checksums.txt` is
+not found and the script dies — and even if it found the checksums it has no
+tree to build. The *safety* claim behind the phrase survives intact (no
+escalation, no writes outside `$HOME`, one download verified against a
+committed SHA256), and that is what the wording above now claims. The script's
+own header comment says the same. Adding cloning logic was considered and
+rejected: it would make the script fetch code it cannot show you first, which
+is the opposite of the property that made it worth claiming. The README only
+ever documented `./setup.sh`, so nothing user-facing was wrong — only this
+spec and a comment.
 
 ## Stage 1 — `aurium doctor --fix`
 
@@ -167,10 +181,43 @@ this design was born from.
 - Wizard: `TestEveryDashboardModuleIsEmbedded` checks a hardcoded list, so
   `views/setup.js` must be added to it — the test does not discover new views,
   and a view missing from that list is a blank page with one console error.
-  `TestModuleImportsResolveToJavaScript` then covers it for free. A smoke test
-  asserts the wizard renders on an empty daemon and does not on a populated
-  one.
+  `TestModuleImportsResolveToJavaScript` then covers it for free. ~~A smoke
+  test asserts the wizard renders on an empty daemon and does not on a
+  populated one.~~ **Dropped — see below.**
 - CI matrix: `macos-latest` and `ubuntu-latest`.
+
+**Amended 2026-09-15 (dropped requirement: the wizard smoke test).** The
+struck requirement above was never built. The implementation plan quietly
+substituted the embed-list check for it — a different test answering a
+different question: that `views/setup.js` is shipped, not that the wizard
+appears when it should.
+
+What that leaves unverified is `shouldOpenSetup()` in `internal/api/web/app.js`
+— the predicate deciding what every new contributor sees on their first load.
+Nothing tests that it opens the wizard on an empty daemon, that it does *not*
+open it once a project or a provider account exists, or that `setupDismissed`
+suppresses it. A regression in any of those three is invisible to CI and
+visible only to the one person least able to diagnose it: someone running
+Aurium for the first time.
+
+This was ruled on rather than fixed. The repository has no JavaScript test
+harness at all — no runner, no DOM shim, no `package.json`, and `make build`
+deliberately needs nothing but Go. Standing one up to test a single pure
+predicate is disproportionate, and the cost lands on every future contributor,
+not just this change.
+
+What it would take to honour it later, cheaply and in that order:
+
+1. Lift `shouldOpenSetup()` out of `app.js` into a module with no DOM imports
+   (`lib/routing.js`), taking state as an argument rather than reading the
+   store. It is already pure; it is only its neighbours that are not.
+2. Add a `node --test` file exercising it over the four cases (empty, has
+   projects, has providers, dismissed). Node ships the runner; this adds a
+   dev-time dependency on `node` and nothing to the build.
+3. Only if a second such need appears, consider a real harness. One predicate
+   does not justify one.
+
+Recorded here because a documented gap is recoverable and a silent one is not.
 
 ## Out of scope
 
