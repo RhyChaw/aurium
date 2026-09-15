@@ -34,8 +34,13 @@ func TestPortFreeDetectsAHeldPort(t *testing.T) {
 	}
 	defer ln.Close()
 
-	if err := PortFree(ln.Addr().String()); err == nil {
+	err = PortFree(ln.Addr().String())
+	if err == nil {
 		t.Fatal("a port with a live listener must not report free")
+	}
+	// The listener is owned by this process, so the message must identify it as such
+	if !strings.Contains(err.Error(), "aurium up --restart") {
+		t.Fatalf("error for own process must suggest --restart, got: %v", err)
 	}
 }
 

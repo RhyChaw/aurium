@@ -57,7 +57,7 @@ func portOwner(addr string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	out, err := exec.CommandContext(ctx, "lsof", "-nP", "-iTCP:"+port, "-sTCP:LISTEN", "-F", "un").Output()
+	out, err := exec.CommandContext(ctx, "lsof", "-nP", "-iTCP:"+port, "-sTCP:LISTEN", "-F", "Lpn").Output()
 	if err != nil {
 		return ""
 	}
@@ -67,10 +67,10 @@ func portOwner(addr string) string {
 			continue
 		}
 		switch line[0] {
+		case 'L':
+			user = line[1:]
 		case 'p':
 			pid = line[1:]
-		case 'u':
-			user = line[1:]
 		}
 	}
 	if user == "" {
