@@ -220,7 +220,11 @@ func TestAgentPlacementDefaultsToInContainer(t *testing.T) {
 }
 
 func TestAgentPlacementRejectsAnUnknownValue(t *testing.T) {
-	c := Config{Sandbox: Sandbox{AgentPlacement: "somewhere-else"}}
+	c := Config{
+		Version: 1,
+		Sandbox: Sandbox{AgentPlacement: "somewhere-else"},
+		Project: Project{Name: "test", BaseBranch: "main"},
+	}
 	c.Normalize()
 	if err := c.Validate(); err == nil {
 		t.Fatal("an unknown placement must be rejected, not silently accepted")

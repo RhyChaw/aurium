@@ -254,7 +254,7 @@ func (c *Config) Validate() error {
 	switch c.Sandbox.AgentPlacement {
 	case PlacementInContainer, PlacementHost:
 	default:
-		return fmt.Errorf("config: sandbox.agent_placement is %q; it must be %q or %q",
+		return fmt.Errorf("sandbox.agent_placement is %q; it must be %q or %q",
 			c.Sandbox.AgentPlacement, PlacementInContainer, PlacementHost)
 	}
 
