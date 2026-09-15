@@ -222,7 +222,7 @@ async function bootRefresh() {
 async function loadProviderCount() {
   try {
     const { accounts } = await Aurium.providers();
-    state.providers = accounts ?? [];
+    update({ providers: accounts ?? [] });
   } catch {
     /* state.providers stays whatever it already was (null on first boot) */
   }

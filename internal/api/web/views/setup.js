@@ -31,7 +31,7 @@ export function renderSetup(host) {
   const checks = state.preflight ?? [];
   const blocking = checks.filter((c) => !c.ok && c.severity === "required");
 
-  mount(host, [
+  mount(host, el("div.setup", {}, [
     el("h2", {}, "Set up Aurium"),
     el("p.lede", {}, "Four steps. The first one is your machine."),
 
@@ -61,5 +61,5 @@ export function renderSetup(host) {
     // A wizard you cannot leave is a trap, not a wizard.
     el("button.mini", { onclick: () => update({ panel: "workspace", setupDismissed: true }) },
       "Skip for now"),
-  ]);
+  ]));
 }
