@@ -105,7 +105,7 @@
     <div style="position:relative;max-width:1220px;margin:0 auto;padding:54px 32px 28px;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center">
       <span style="font:500 10px/1 'IBM Plex Mono';letter-spacing:.26em;text-transform:uppercase;color:#7A5510">No. 02 · the window</span>
       <h2 style="margin:0;font:400 clamp(28px,4.4vw,48px)/1.08 'Instrument Serif',serif;max-width:22ch;text-wrap:pretty">The whole fleet, beating, in one window</h2>
-      <p style="margin:0;max-width:56ch;font:400 14.5px/1.68 'IBM Plex Sans';color:#5C574D;text-wrap:pretty">The real thing at real size, not a screenshot cropped to fit. The trace is the fleet's pulse: five lanes, one per event class, running live while you read this.</p>
+      <p style="margin:0;max-width:56ch;font:400 14.5px/1.68 'IBM Plex Sans';color:#5C574D;text-wrap:pretty">A mockup of the window at real size — the panels are the real ones, the figures in them are illustrative. The trace is the fleet's pulse: five lanes, one per event class, running live while you read this.</p>
     </div>
 
     <div style="perspective:2400px;perspective-origin:50% 26%;display:flex;justify-content:center;overflow:hidden;padding-bottom:10px">
@@ -311,7 +311,7 @@
                       </article>
                       <article style="border:1px solid #232130;border-left:3px solid #E0866F;border-radius:9px;background:#131118;padding:9px 11px;display:flex;flex-direction:column;gap:5px">
                         <div style="display:flex;align-items:baseline;gap:7px;font:400 9.5px/1 'IBM Plex Mono';color:#9B95A5"><span style="font-weight:600;color:#E6E2EB">ag_7f3c</span><span>APPROVAL_REQUIRED</span><span style="color:#E0866F">high</span><span style="margin-left:auto">3m</span></div>
-                        <div style="font:400 12.5px/1.55 'IBM Plex Sans';color:#D6D2DE">Needs <code style="font:400 11px 'IBM Plex Mono';color:#F5C35A">net.http.post</code> to api.github.com to open the PR against a protected branch.</div>
+                        <div style="font:400 12.5px/1.55 'IBM Plex Sans';color:#D6D2DE">Needs <code style="font:400 11px 'IBM Plex Mono';color:#F5C35A">github_create_pull_request</code> on api.github.com to open the PR against a protected branch.</div>
                         <div style="display:flex;gap:7px;margin-top:3px">
                           <span style="font:600 11px/1 'IBM Plex Sans';background:linear-gradient(180deg,#FFE9A8,#D8A038);color:#2A1C05;border-radius:6px;padding:7px 13px">Approve</span>
                           <span style="font:600 11px/1 'IBM Plex Sans';color:#A8A2B2;border:1px solid #312D3C;border-radius:6px;padding:7px 13px">Reject</span>
@@ -359,7 +359,7 @@
           <img src="logo.svg" alt="" style="width:104px;height:83px;image-rendering:pixelated;align-self:flex-start;filter:drop-shadow(0 12px 28px rgba(245,195,90,.3))">
           <h2 style="margin:0;font:400 clamp(34px,5.6vw,72px)/.98 'Instrument Serif',serif;letter-spacing:-.018em;max-width:15ch;text-wrap:pretty">Yours to read,<br><em style="font-style:italic;background:linear-gradient(180deg,#FFFBEE 0%,#FFF0C2 16%,#F5C35A 44%,#C68F2C 76%,#6B4912 100%);background-size:100% 280%;animation:pour 11s ease-in-out infinite alternate;-webkit-background-clip:text;background-clip:text;color:transparent">fork and run.</em></h2>
         </div>
-        <p style="margin:0;font:400 15.5px/1.7 'IBM Plex Sans';color:#BDB6A6;max-width:52ch;text-wrap:pretty">MIT licensed, every line of it. A Go daemon, a frontend with no bundler, a thirty line Tauri shell. <code style="font:400 13px 'IBM Plex Mono';color:#F5C35A">make build</code> needs only Go. The API in <code style="font:400 13px 'IBM Plex Mono';color:#F5C35A">api/openapi.yaml</code> is the product boundary, so anything the window does, you can do too.</p>
+        <p style="margin:0;font:400 15.5px/1.7 'IBM Plex Sans';color:#BDB6A6;max-width:52ch;text-wrap:pretty">MIT licensed, every line of it. A Go daemon, a frontend with no bundler, a forty line Tauri shell. <code style="font:400 13px 'IBM Plex Mono';color:#F5C35A">make build</code> needs only Go. The API in <code style="font:400 13px 'IBM Plex Mono';color:#F5C35A">api/openapi.yaml</code> is the product boundary, so anything the window does, you can do too.</p>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:1px;background:#332F26;border:1px solid #332F26">
@@ -406,12 +406,12 @@
       <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
         <span style="font:500 10px/1 'IBM Plex Mono';letter-spacing:.26em;text-transform:uppercase;color:#97341F">No. 04 · the part nothing else does</span>
         <h2 style="margin:0;font:400 clamp(28px,4.2vw,46px)/1.08 'Instrument Serif',serif;max-width:20ch;text-wrap:pretty">A blocked agent is an idle agent. Aurium comes and finds you.</h2>
-        <p style="margin:0;max-width:54ch;font:400 15px/1.68 'IBM Plex Sans';color:#3A362D;text-wrap:pretty">When an agent reaches for a capability it does not hold, a network call or a write outside its worktree or a secret, the daemon holds the call and asks. Approving executes the held call inside the daemon and hands the agent the result, so it resumes where it stopped instead of starting over. The desktop app raises a native notification, because a window behind three others is a window you are not reading.</p>
+        <p style="margin:0;max-width:54ch;font:400 15px/1.68 'IBM Plex Sans';color:#3A362D;text-wrap:pretty">When an agent calls a tool through the gateway, the daemon reads the verb in its name and decides. Destructive ones — delete, merge, close, force — are held and asked about. Approving executes the held call inside the daemon and hands the agent the result, so it resumes where it stopped instead of starting over. The desktop app raises a native notification, because a window behind three others is a window you are not reading.</p>
         <div style="display:flex;gap:0;flex-wrap:wrap;border-top:1px solid #DCD5C6">
-          <span style="font:400 11px/1 'IBM Plex Mono';color:#3A362D;border-bottom:1px solid #DCD5C6;padding:11px 14px 11px 0">net.http.*</span>
-          <span style="font:400 11px/1 'IBM Plex Mono';color:#3A362D;border-bottom:1px solid #DCD5C6;padding:11px 14px">fs.write outside worktree</span>
-          <span style="font:400 11px/1 'IBM Plex Mono';color:#3A362D;border-bottom:1px solid #DCD5C6;padding:11px 14px">secrets.read</span>
-          <span style="font:400 11px/1 'IBM Plex Mono';color:#3A362D;border-bottom:1px solid #DCD5C6;padding:11px 14px">shell.exec</span>
+          <span style="font:400 11px/1 'IBM Plex Mono';color:#3A362D;border-bottom:1px solid #DCD5C6;padding:11px 14px 11px 0">aurium_merge</span>
+          <span style="font:400 11px/1 'IBM Plex Mono';color:#3A362D;border-bottom:1px solid #DCD5C6;padding:11px 14px">github_* via the gateway</span>
+          <span style="font:400 11px/1 'IBM Plex Mono';color:#3A362D;border-bottom:1px solid #DCD5C6;padding:11px 14px">aurium_context_write</span>
+          <span style="font:400 11px/1 'IBM Plex Mono';color:#3A362D;border-bottom:1px solid #DCD5C6;padding:11px 14px">aurium_delegate</span>
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
@@ -481,12 +481,12 @@
         <img src="logo.svg" alt="" style="width:76px;height:61px;image-rendering:pixelated;filter:drop-shadow(0 10px 24px rgba(245,195,90,.35))">
         <span style="font:500 10px/1 'IBM Plex Mono';letter-spacing:.26em;text-transform:uppercase;color:#C68F2C">No. 07 · download · {{ version }}</span>
         <h2 style="margin:0;font:400 clamp(38px,6.6vw,86px)/.95 'Instrument Serif',serif;letter-spacing:-.02em;background:linear-gradient(180deg,#FFFBEE 0%,#FFF0C2 16%,#F5C35A 42%,#C68F2C 70%,#6B4912 100%);background-size:100% 280%;animation:pour 10s ease-in-out infinite alternate;-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 14px 44px rgba(245,195,90,.26))">Get the window</h2>
-        <p style="margin:0;max-width:56ch;font:400 15px/1.7 'IBM Plex Sans';color:#BDB6A6;text-wrap:pretty">A native window onto your own daemon. Nothing leaves the machine. It listens on 127.0.0.1 only, and there is no account to make.</p>
+        <p style="margin:0;max-width:56ch;font:400 15px/1.7 'IBM Plex Sans';color:#BDB6A6;text-wrap:pretty">A native window onto your own daemon. It listens on 127.0.0.1 only, there is no account to make, and the app itself reports nothing anywhere — the only traffic off the machine is your agents calling the model provider you connected.</p>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(296px,1fr));gap:15px">
         <div style="border:1px solid #6B5220;background:linear-gradient(180deg,rgba(245,195,90,.12),#1D1A13);padding:26px;display:flex;flex-direction:column;gap:17px;box-shadow:0 24px 64px -32px rgba(245,195,90,.45)">
-          <div style="display:flex;align-items:baseline;gap:10px"><h3 style="margin:0;font:600 20px/1 'IBM Plex Sans';color:#FFE9A8">macOS</h3><span style="font:400 10.5px/1 'IBM Plex Mono';color:#C68F2C">11 Big Sur or later</span></div>
+          <div style="display:flex;align-items:baseline;gap:10px"><h3 style="margin:0;font:600 20px/1 'IBM Plex Sans';color:#FFE9A8">macOS</h3><span style="font:400 10.5px/1 'IBM Plex Mono';color:#C68F2C">Apple Silicon or Intel · Docker</span></div>
           <div style="display:flex;flex-direction:column;gap:9px">
             <a href="https://github.com/RhyChaw/aurium" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';background:linear-gradient(180deg,#FFF6DC,#FFE9A8 22%,#D8A038 68%,#A87A22);background-size:100% 220%;animation:melt 8s ease-in-out infinite alternate;color:#2A1C05;padding:16px 18px;border:none">Clone the repo<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';opacity:.72">arm64 or Intel</span></a>
             <a href="https://github.com/RhyChaw/aurium#run-it" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A3510;padding:16px 18px">Setup guide<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">README</span></a>
@@ -495,7 +495,7 @@
         </div>
 
         <div style="border:1px solid #4A4335;background:#1D1A13;padding:26px;display:flex;flex-direction:column;gap:17px">
-          <div style="display:flex;align-items:baseline;gap:10px"><h3 style="margin:0;font:600 20px/1 'IBM Plex Sans';color:#F7F4EE">Linux</h3><span style="font:400 10.5px/1 'IBM Plex Mono';color:#BDB6A6">x86_64 · glibc 2.31+</span></div>
+          <div style="display:flex;align-items:baseline;gap:10px"><h3 style="margin:0;font:600 20px/1 'IBM Plex Sans';color:#F7F4EE">Linux</h3><span style="font:400 10.5px/1 'IBM Plex Mono';color:#BDB6A6">x86_64 or arm64 · Docker</span></div>
           <div style="display:flex;flex-direction:column;gap:9px">
             <a href="https://github.com/RhyChaw/aurium" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A4335;padding:16px 18px">Clone the repo<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">x86_64 or arm64</span></a>
             <a href="https://github.com/RhyChaw/aurium#run-it" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A4335;padding:16px 18px">Setup guide<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">README</span></a>
@@ -511,7 +511,7 @@
         </div>
       </div>
 
-      <p style="margin:0;text-align:center;font:400 12.5px/1.7 'IBM Plex Sans';color:#BDB6A6">Or skip the app entirely. <code style="font:400 11.5px 'IBM Plex Mono';color:#F5C35A">aurium daemon</code> and open <code style="font:400 11.5px 'IBM Plex Mono';color:#F5C35A">127.0.0.1:7770</code> in a browser. Same dashboard, same everything.</p>
+      <p style="margin:0;text-align:center;font:400 12.5px/1.7 'IBM Plex Sans';color:#BDB6A6">Or skip the app entirely. <code style="font:400 11.5px 'IBM Plex Mono';color:#F5C35A">aurium up</code> and open <code style="font:400 11.5px 'IBM Plex Mono';color:#F5C35A">127.0.0.1:7770</code> in a browser. Same dashboard, same everything.</p>
     </div>
   </div>
 
@@ -632,7 +632,7 @@ class Component extends DCLogic {
       ["12:04:11", "planner", "#7AA6DD", "ok  github.com/rhychaw/aurium/internal/api  2.418s"],
       ["12:04:12", "indexer", "#86C08A", "context: reindexed 1,912 chunks (aurium, aurium-docs)"],
       ["12:04:18", "reviewer-3", "#E0866F", "guard: push to protected branch refused, opening PR"],
-      ["12:04:18", "reviewer-3", "#E0866F", "approval required: net.http.post api.github.com"],
+      ["12:04:18", "reviewer-3", "#E0866F", "approval required: github_create_pull_request"],
       ["12:04:22", "docs", "#D9AC54", "container up · worktree au/docs-pass cloned"],
     ].map(([ts, who, color, text]) => ({ ts, who, color, text }));
 
@@ -658,9 +658,9 @@ class Component extends DCLogic {
     ].map(([tag, tagColor, title, body]) => ({ tag, tagColor, title, body }));
 
     const approvals = [
-      ["net.http.post → api.stripe.com/v1/refunds", "expires in 42s", true,
+      ["github_merge_pull_request → aurium#42", "expires in 42s", true,
         "Refunding a test charge while verifying the webhook replay path.", "test-writer · mercury-api"],
-      ["secrets.read → AWS_SECRET_ACCESS_KEY", "expires in 6m", false,
+      ["aurium_context_write → project scope", "expires in 6m", false,
         "Needs to sign a pre-signed URL to reproduce the reported upload failure.", "billing · ledger"],
     ].map(([cap, expiry, soon, reason, who]) => ({
       cap, expiry, reason, who,
@@ -691,9 +691,9 @@ class Component extends DCLogic {
     ].map(([n, title, body, tag]) => ({ n, title, body, tag }));
 
     const steps = [
-      ["1", "Start the daemon", "It writes a host token to ~/.aurium/token and listens on 127.0.0.1:7770. Nothing is exposed off the machine.", "aurium daemon"],
+      ["1", "Start the daemon", "It writes a host token to ~/.aurium/token and listens on 127.0.0.1:7770. Nothing is exposed off the machine.", "aurium up"],
       ["2", "Register a repository", "Run init inside any git repository and it appears as a standalone project, guard hooks and aurium.yaml installed.", "aurium init"],
-      ["3", "Spawn agents", "Each gets a container, a worktree and a branch of its own, on whichever adapter and account you chose.", "aurium spawn claude"],
+      ["3", "Spawn agents", "Each gets a container, a worktree and a branch of its own, on whichever adapter and account you chose.", "aurium container create api-fix"],
       ["4", "Watch, or take the wheel", "The window shows every agent at once. When you want a terminal instead, attach to the container.", "aurium attach ct_4a91"],
     ].map(([n, title, body, cmd]) => ({ n, title, body, cmd }));
 
