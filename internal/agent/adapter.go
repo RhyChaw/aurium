@@ -36,7 +36,17 @@ type Projection struct {
 	// Home is the container's $HOME. Everything written here is per-container
 	// and is captured by `docker commit`, which is why an agent's transcript
 	// survives a snapshot (§1.1 finding 1).
+	//
+	// It names a path INSIDE the container, so it is not a path this process
+	// may hand to os.WriteFile. Write through FS below, never through Home.
 	Home string
+	// FS is the filesystem Prepare's files are written to. The runtime sets
+	// it: a container-backed driver gets one that writes through the driver,
+	// because Home is a path in the container's rootfs and not on this
+	// machine. Nil falls back to the host's filesystem rooted at Home, which
+	// is right only where Home really is a host directory — the local driver,
+	// and host placement.
+	FS HomeFS
 	// ContextPath is the generated CONTEXT.md inside the worktree (§8.5).
 	ContextPath string
 	// MCPCommand is the in-container shim binary.
@@ -201,28 +211,71 @@ func DefaultRegistry() Registry {
 	return r
 }
 
-// ---- shared helpers ----
+// HomeFS is the filesystem an agent's $HOME lives on.
+//
+// It exists because the daemon and the agent do not share one. Projection.Home
+// is a path inside the container ("/home/aurium"); calling os.WriteFile on it
+// writes to a same-named path on the HOST, which is a different filesystem
+// with different contents. On macOS that fails outright — /home is autofs, so
+// the daemon reports `mkdir /home/aurium: operation not supported` and no
+// agent can be created at all. On Linux it is worse, because it can succeed:
+// the instructions land in the host's /home/aurium and the container, which
+// looks in its own rootfs, finds nothing. A silent, correct-looking no-op.
+//
+// So the runtime says where the files go rather than the adapter assuming.
+type HomeFS interface {
+	// ReadFile returns the file's contents, or nil with a nil error when it
+	// does not exist. Absence is the ordinary case on a fresh home and is not
+	// worth making every caller restate.
+	ReadFile(rel string) ([]byte, error)
+	// WriteFile writes content at rel, creating parent directories.
+	WriteFile(rel, content string) error
+}
 
-// writeFileIn writes a file under home, creating parents.
-func writeFileIn(home, rel, content string) error {
-	p := filepath.Join(home, rel)
+// OSHome is a HomeFS rooted at a real directory on this machine. It is correct
+// wherever $HOME is genuinely host-side: the local driver, which has no
+// rootfs, and host placement.
+type OSHome struct{ Root string }
+
+func (h OSHome) ReadFile(rel string) ([]byte, error) {
+	b, err := os.ReadFile(filepath.Join(h.Root, rel))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	return b, err
+}
+
+func (h OSHome) WriteFile(rel, content string) error {
+	p := filepath.Join(h.Root, rel)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
 	return os.WriteFile(p, []byte(content), 0o644)
 }
 
+// home is the filesystem this projection's files belong on. A nil FS means the
+// host's own, rooted at Home — see the field comment for when that is right.
+func (p Projection) home() HomeFS {
+	if p.FS != nil {
+		return p.FS
+	}
+	return OSHome{Root: p.Home}
+}
+
+// ---- shared helpers ----
+
+// writeFileIn writes a file under the projection's home, creating parents.
+func writeFileIn(p Projection, rel, content string) error {
+	return p.home().WriteFile(rel, content)
+}
+
 // ensureImport appends a line to a file exactly once, preserving whatever the
 // user already wrote there. Agents' instruction files are user-editable, so
 // Prepare must be additive, not authoritative.
-func ensureImport(home, rel, line, header string) error {
-	p := filepath.Join(home, rel)
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return err
-	}
-
-	existing, err := os.ReadFile(p)
-	if err != nil && !os.IsNotExist(err) {
+func ensureImport(p Projection, rel, line, header string) error {
+	fsys := p.home()
+	existing, err := fsys.ReadFile(rel)
+	if err != nil {
 		return err
 	}
 	if strings.Contains(string(existing), line) {
@@ -237,7 +290,7 @@ func ensureImport(home, rel, line, header string) error {
 		body += "\n"
 	}
 	body += header + "\n" + line + "\n"
-	return os.WriteFile(p, []byte(body), 0o644)
+	return fsys.WriteFile(rel, body)
 }
 
 // interactiveWrap turns an agent command into a tmux-safe command line.

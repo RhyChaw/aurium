@@ -18,7 +18,7 @@ func (s *Shell) Capabilities() Caps {
 
 // Prepare exports the context path so a human (or a script) can find it.
 func (s *Shell) Prepare(p Projection) error {
-	return writeFileIn(p.Home, ".aurium_env",
+	return writeFileIn(p, ".aurium_env",
 		"export AURIUM_CONTEXT_FILE="+p.ContextPath+"\n"+
 			"export AURIUM_URL="+p.AuriumURL+"\n")
 }

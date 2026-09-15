@@ -252,7 +252,8 @@ func (m *Manager) recreate(ctx context.Context, containerID string, cfg *config.
 	agentID := ids.New(ids.Agent)
 	hostSandboxed := cfg.Sandbox.AgentPlacement == config.PlacementHost
 
-	if err := adapter.Prepare(agentProjection(m, c, home, hostSandboxed, agentID)); err != nil {
+	if err := adapter.Prepare(agentProjection(m, c, home, hostSandboxed, agentID,
+		projectionFS(ctx, drv, runtimeID, home))); err != nil {
 		return err
 	}
 	if err := m.runHooks(ctx, drv, runtimeID, c.Worktree, spec.Env, cfg.Hooks.PostCreate); err != nil {

@@ -302,6 +302,10 @@ func (m *Manager) Create(ctx context.Context, o CreateOpts) (store.Container, er
 		AgentID:       agentID,
 		AuriumHome:    m.SnapshotHome,
 		HostAuriumURL: m.HostAuriumURL,
+
+		// home above is a path in the container for every driver with a
+		// rootfs, so the files go in through the driver, not through os.
+		FS: projectionFS(ctx, drv, runtimeID, home),
 	}
 	if err := adapter.Prepare(projection); err != nil {
 		rollback()
@@ -352,7 +356,7 @@ func (m *Manager) buildSpec(ctx context.Context, o CreateOpts, c store.Container
 	// $HOME lives inside the container's rootfs for real drivers; the local
 	// driver has no rootfs, so it gets a directory on the host.
 	home := "/home/aurium"
-	if !drv.Capabilities().Snapshot {
+	if hostHome(drv) {
 		home = filepath.Join(m.HomeRoot, c.ID)
 		if err := os.MkdirAll(home, 0o755); err != nil {
 			return driver.Spec{}, "", err
@@ -712,9 +716,11 @@ func (m *Manager) Destroy(ctx context.Context, containerID string, o DestroyOpts
 // agentProjection builds the Projection an adapter's Prepare receives.
 // hostSandboxed and agentID are only meaningful together: see the matching
 // comment in Create.
-func agentProjection(m *Manager, c store.Container, home string, hostSandboxed bool, agentID string) agent.Projection {
+func agentProjection(m *Manager, c store.Container, home string, hostSandboxed bool,
+	agentID string, fsys agent.HomeFS) agent.Projection {
 	return agent.Projection{
 		Home:        home,
+		FS:          fsys,
 		ContextPath: filepath.Join(c.Worktree, gitx.AuriumDir, "CONTEXT.md"),
 		MCPCommand:  "aurium-mcp",
 		AuriumURL:   m.AuriumURL,
