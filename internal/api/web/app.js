@@ -90,7 +90,14 @@ function renderChrome() {
   bar.hidden = !state.notice;
 }
 
-function selectPanel(key) {
+// Exported because the setup wizard's steps are navigation too, and going to
+// a panel is more than setting state.panel: each panel loads its own data on
+// arrival, and only this function does that. A view that writes
+// `update({ panel: "providers" })` lands on a panel that never fetched
+// anything — which is what made the wizard's "Open Providers" show an empty
+// grid and a GitHub card stuck on "checking…" with no event that could ever
+// resolve it.
+export function selectPanel(key) {
   // The notice reports the result of something the user just did on the panel
   // they were on. Carrying it to the next one would leave a stale sentence
   // over an unrelated screen.
@@ -105,7 +112,6 @@ function selectPanel(key) {
   if (key === "usage") reloadUsage();
   if (key === "providers") reloadProviders();
   if (key === "approvals") reloadApprovals();
-  if (key === "setup") reloadPreflight();
 }
 
 // ---- live updates ----

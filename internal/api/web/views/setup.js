@@ -8,6 +8,10 @@
 import { el, mount } from "../lib/dom.js";
 import { state, update } from "../lib/state.js";
 import { Aurium } from "../lib/api.js";
+// A cycle with app.js, and a deliberate one: app.js owns panel navigation, and
+// the steps below are navigation. Function declarations are hoisted at module
+// instantiation, so selectPanel is bound long before any click can reach it.
+import { selectPanel } from "../app.js";
 
 export async function reloadPreflight() {
   try {
@@ -22,7 +26,9 @@ function checkRow(c) {
   const cls = c.ok ? "is-ok" : c.severity === "optional" ? "is-warn" : "is-fail";
   return el(`li.check.${cls}`, {},
     el("span.check-name", {}, c.name),
-    el("span.check-detail", {}, c.ok ? "ok" : c.error ?? "failed"),
+    // A passing check can still have something to say — "the port is held, by
+    // your own Aurium daemon" is the answer, not a complaint.
+    el("span.check-detail", {}, c.ok ? c.detail ?? "ok" : c.error ?? "failed"),
     // The exact command, selectable: the whole point is that it can be copied.
     !c.ok && c.remedy ? el("code.check-fix", {}, c.remedy) : null);
 }
@@ -45,21 +51,30 @@ export function renderSetup(host) {
       el("ul.checks", {}, checks.map(checkRow)),
       el("button.mini", { onclick: reloadPreflight }, "Re-check")),
 
+    // Every step navigates through selectPanel, exactly as clicking the tab
+    // does. Setting state.panel directly skipped the panel's load-on-arrival:
+    // on first run nothing is cached, so steps 2 and 3 landed on an empty
+    // provider grid and a GitHub card that said "checking…" forever.
     el("section.step", {},
       el("h3", {}, "2 · Connect a provider"),
       el("p", {}, "Agents run on your accounts."),
-      el("button", { onclick: () => update({ panel: "providers" }) }, "Open Providers")),
+      el("button", { onclick: () => selectPanel("providers") }, "Open Providers")),
 
     el("section.step", {},
       el("h3", {}, "3 · Connect GitHub"),
-      el("button", { onclick: () => update({ panel: "providers" }) }, "Open Providers")),
+      el("button", { onclick: () => selectPanel("providers") }, "Open Providers")),
 
     el("section.step", {},
       el("h3", {}, "4 · Your first project"),
-      el("button", { onclick: () => update({ panel: "home" }) }, "Create a project")),
+      el("button", { onclick: () => selectPanel("home") }, "Create a project")),
 
-    // A wizard you cannot leave is a trap, not a wizard.
-    el("button.mini", { onclick: () => update({ panel: "workspace", setupDismissed: true }) },
-      "Skip for now"),
+    // A wizard you cannot leave is a trap, not a wizard. The dismissal is the
+    // one piece of state selectPanel does not carry, so it is set first.
+    el("button.mini", {
+      onclick: () => {
+        update({ setupDismissed: true });
+        selectPanel("workspace");
+      },
+    }, "Skip for now"),
   ]));
 }
