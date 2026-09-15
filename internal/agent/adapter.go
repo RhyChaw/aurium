@@ -7,6 +7,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -105,6 +106,17 @@ type ExecOpts struct {
 	// MCPConfigPath points at the JSON naming the daemon's MCP endpoint. Only
 	// read when HostSandboxed.
 	MCPConfigPath string
+	// ProjectContext is the rendered .aurium/CONTEXT.md — the agent's
+	// objective, constraints and stack position.
+	//
+	// It is carried here, as text, because a host turn has no other way to
+	// receive it. The in-container path delivers it as an @-import in the
+	// container's ~/.claude/CLAUDE.md, which only works because $HOME there is
+	// the one Prepare wrote into. A host process runs with the developer's own
+	// environment and reads the developer's ~/.claude/CLAUDE.md, so anything
+	// written under the container's $HOME reaches it nowhere. Only read when
+	// HostSandboxed.
+	ProjectContext string
 }
 
 // ExecResult is the outcome of a headless run.
@@ -297,11 +309,31 @@ func hostMCPServerJSON(auriumBaseURL, token string) string {
 `, MCPEndpoint(auriumBaseURL), "Bearer "+token)
 }
 
+// ErrNoHostToken is returned when a host-sandboxed agent is prepared without a
+// bearer token.
+//
+// An in-container agent with no token loses the gateway tools but keeps its own
+// Bash and stays useful for project work. A host-sandboxed one has its shell
+// denied as well, so a config carrying "Authorization: Bearer " — which the API
+// middleware answers with a 401 — leaves it with no tools and no shell at all.
+// The CLI reports that as a perfectly normal, empty reply: `claude -p
+// --output-format json` returns "is_error": false with no permission_denials
+// when its only MCP server is unauthorized. Nothing downstream can tell that
+// apart from a working turn, so the only place it can be caught is here,
+// before the config is written.
+var ErrNoHostToken = errors.New(
+	"agent: a host-sandboxed agent needs a gateway token, and none was issued; " +
+		"without one its only MCP server is refused and, with its own shell denied, " +
+		"it would run with no tools at all")
+
 // writeHostMCPConfig writes the file agent.MCPConfigPath names — the ONE
 // place that composes that path, called here exactly as the runtime calls it
 // for ExecOpts.MCPConfigPath, so Prepare and HeadlessCommand cannot disagree
 // about where it lives. Called only when p.HostSandboxed.
 func writeHostMCPConfig(p Projection) error {
+	if p.Token == "" {
+		return ErrNoHostToken
+	}
 	path := MCPConfigPath(p.AuriumHome, p.AgentID)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -325,3 +357,25 @@ Use the aurium_exec tool for every command. The container has the project's
 toolchain; the host may not have it at all. If a command reports that a tool
 is missing, that is the container's environment telling you something true —
 do not go looking for it elsewhere on the machine.`
+
+// contextHeading introduces the projection inlined into a host turn's system
+// prompt, so the agent can tell Aurium's context from the rest of the prompt.
+const contextHeading = "This container's Aurium context (.aurium/CONTEXT.md):"
+
+// hostSystemPrompt is what a host-sandboxed turn receives through
+// --append-system-prompt: the placement notice, plus the context projection
+// the in-container path delivers as an @-import.
+//
+// Both travel in argv rather than on disk. A host turn is launched with the
+// developer's own environment — nothing sets HOME — so it reads the
+// developer's ~/.claude/CLAUDE.md, never the one Prepare wrote under the
+// container's $HOME. Redirecting HOME instead would cohere only for the
+// `local` driver, whose $HOME is a host directory; under Docker it is a path
+// inside the rootfs that does not exist out here at all.
+func hostSystemPrompt(projectContext string) string {
+	prompt := hostPlacementNotice
+	if body := strings.TrimSpace(projectContext); body != "" {
+		prompt += "\n\n" + contextHeading + "\n\n" + body
+	}
+	return prompt
+}
