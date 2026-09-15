@@ -182,6 +182,15 @@ function initKeys() {
       // A modal owns the keyboard while it is open; a stray "a" inside the new
       // project form must not reach the accelerators.
       document.querySelector("dialog[open]") !== null;
+    // Cmd/Ctrl+B, as in VS Code. Handled before the guard below because that
+    // guard drops every modifier combination, and this one is deliberately a
+    // combination. It fires while typing too: hiding a panel is not an edit,
+    // and having it die inside a text field is the surprise, not the feature.
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      toggleSidebar();
+      return;
+    }
     if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
 
     if (e.key >= "1" && e.key <= String(ORDER.length)) {
@@ -206,6 +215,43 @@ function initKeys() {
       moveSelection(e.key === "j" ? 1 : -1);
     }
   });
+}
+
+const SIDEBAR_KEY = "aurium.sidebar";
+
+/**
+ * The sidebar is a panel, not furniture: on a laptop it is 214px of a 1200px
+ * window, and the fleet chart is the thing worth the pixels.
+ *
+ * The state lives on <html> rather than in state.js because it is a per-browser
+ * viewing preference with no bearing on what the daemon is doing — the same
+ * reason the theme lives there. A class on the root also applies before first
+ * paint on reload, so a collapsed sidebar does not flash open.
+ */
+export function toggleSidebar(force) {
+  const root = document.documentElement;
+  const next = force ?? !root.classList.contains("sidebar-hidden");
+  root.classList.toggle("sidebar-hidden", next);
+  document.querySelector(".sidebar")?.setAttribute("aria-hidden", String(next));
+  try {
+    localStorage.setItem(SIDEBAR_KEY, next ? "hidden" : "shown");
+  } catch {
+    /* a preference that cannot be remembered is not an error */
+  }
+  // The pulse canvas measures its own box; the grid just changed width and no
+  // window resize fired, so tell it. Without this the trace stays the old
+  // width until the next tick happens to repaint it.
+  window.dispatchEvent(new Event("resize"));
+}
+
+function initSidebar() {
+  let hidden = false;
+  try {
+    hidden = localStorage.getItem(SIDEBAR_KEY) === "hidden";
+  } catch {
+    /* private windows throw on access; the sidebar simply starts open */
+  }
+  if (hidden) toggleSidebar(true);
 }
 
 /** moveSelection walks the rail's tiles in the order they are drawn. */
@@ -244,6 +290,7 @@ async function loadProviderCount() {
 
 async function main() {
   initTheme($("#theme"));
+  initSidebar();
 
   if (!readToken()) {
     update({ conn: "down", notice: "No token in this page. Open the dashboard with `aurium dashboard`." });
