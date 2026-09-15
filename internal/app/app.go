@@ -8,6 +8,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 
@@ -43,6 +44,41 @@ type App struct {
 	// Usage meters what those accounts spend (§D26).
 	Usage *usage.Recorder
 	Home  string
+}
+
+// DefaultAddr is the loopback address the daemon listens on unless --addr says
+// otherwise. It lives here rather than in internal/daemon (which aliases it)
+// because internal/daemon imports this package, and the wiring below needs a
+// default to fall back to when nothing has told it the real address yet.
+const DefaultAddr = "127.0.0.1:7770"
+
+// HostBaseURL turns a daemon listen address into the base URL a process
+// running on this machine uses to reach it.
+//
+// This exists because HostAuriumURL used to be the constant
+// "http://127.0.0.1:7770" while the daemon's address is a --addr flag. A
+// daemon on any other port wrote host-placed agents an MCP config pointing at
+// nothing — and a host turn whose only MCP server is unreachable reports
+// success with no tools, so nothing said so.
+//
+// A wildcard or empty host ("", ":7770", "0.0.0.0:7770") is rewritten to
+// loopback: those mean "listen everywhere", and a client has to dial
+// somewhere in particular.
+func HostBaseURL(addr string) string {
+	if addr == "" {
+		addr = DefaultAddr
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		// Not host:port at all — hand it back as given rather than inventing
+		// an address; the preflight will name it if it is wrong.
+		return "http://" + addr
+	}
+	switch host {
+	case "", "0.0.0.0", "::", "[::]":
+		host = "127.0.0.1"
+	}
+	return "http://" + net.JoinHostPort(host, port)
 }
 
 // Home returns ~/.aurium, creating it if needed.
@@ -95,9 +131,11 @@ func Open(verbose bool) (*App, error) {
 		AuriumURL:    "http://host.docker.internal:7770",
 		// A host-sandboxed turn's own process runs on this machine, not in a
 		// container, so host.docker.internal — which only resolves inside one
-		// — cannot be its address for the same daemon (internal/daemon's
-		// DefaultAddr, which this mirrors: 127.0.0.1:7770).
-		HostAuriumURL: "http://127.0.0.1:7770",
+		// — cannot be its address for the same daemon. This is only the
+		// default: the daemon overwrites it with its REAL listen address
+		// (internal/daemon.New), because --addr may say something else and a
+		// config pointing at the wrong port fails silently.
+		HostAuriumURL: HostBaseURL(DefaultAddr),
 		DockerBin:     "docker",
 	}
 

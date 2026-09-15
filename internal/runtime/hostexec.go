@@ -50,7 +50,7 @@ func runHost(ctx context.Context, cmd []string, o driver.ExecOpts) (driver.ExecR
 
 	c := exec.CommandContext(ctx, path, cmd[1:]...)
 	c.Dir = o.Workdir
-	c.Env = append(os.Environ(), o.Env...)
+	c.Env = hostEnv(o.Env)
 	if o.Stdin != "" {
 		c.Stdin = strings.NewReader(o.Stdin)
 	}
@@ -79,6 +79,36 @@ func runHost(ctx context.Context, cmd []string, o driver.ExecOpts) (driver.ExecR
 		return res, fmt.Errorf("runtime: run %s on host: %w", cmd[0], runErr)
 	}
 	return res, nil
+}
+
+// hostBaseEnv names the only variables a host turn inherits from the daemon's
+// own environment.
+//
+// PATH so exec.LookPath and the agent's own CLI can find anything at all; HOME
+// because the agent CLI keeps its transcript and login there; USER, TMPDIR and
+// LANG because a process that cannot name the user, write a temp file or
+// decode UTF-8 fails in ways that look like bugs in the agent.
+var hostBaseEnv = []string{"PATH", "HOME", "USER", "TMPDIR", "LANG"}
+
+// hostEnv builds a host turn's environment explicitly rather than inheriting
+// the daemon's.
+//
+// os.Environ() would hand the agent everything the daemon was started with —
+// every API key, every token, every variable the user's shell happened to
+// export. In-container placement passes only sandbox.env, the named
+// env_passthrough entries and the resolved credential; env_passthrough exists
+// precisely to declare what crosses the boundary, and host placement must not
+// be the hole in it. declared arrives already assembled by the caller and
+// comes last, so an explicitly declared PATH or HOME overrides the inherited
+// one — the same last-wins rule docker exec and the local driver follow.
+func hostEnv(declared []string) []string {
+	env := make([]string, 0, len(hostBaseEnv)+len(declared))
+	for _, name := range hostBaseEnv {
+		if v, ok := os.LookupEnv(name); ok {
+			env = append(env, name+"="+v)
+		}
+	}
+	return append(env, declared...)
 }
 
 // wantsTmuxSession reports whether to launch an interactive session.

@@ -65,6 +65,80 @@ func TestRunHostPassesEnvAndStdin(t *testing.T) {
 	}
 }
 
+// The daemon's environment is not the agent's. In-container placement passes
+// only sandbox.env, the declared env_passthrough names and the resolved
+// credential — env_passthrough exists precisely to name what crosses the
+// boundary — so a host turn must not quietly inherit every secret the daemon
+// was started with.
+func TestRunHostDoesNotInheritTheDaemonsEnvironment(t *testing.T) {
+	t.Setenv("AURIUM_TEST_DAEMON_SECRET", "leaked")
+
+	res, err := runHost(context.Background(),
+		[]string{"sh", "-c", "echo \"[$AURIUM_TEST_DAEMON_SECRET]\""}, driver.ExecOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(res.Stdout) != "[]" {
+		t.Errorf("an undeclared variable reached the agent: %q", res.Stdout)
+	}
+}
+
+// Inheriting nothing at all would be its own bug: a process with no PATH
+// cannot find its own toolchain, and a process with no HOME cannot read the
+// agent CLI's login.
+func TestRunHostInheritsTheFewVariablesAProcessNeeds(t *testing.T) {
+	res, err := runHost(context.Background(),
+		[]string{"sh", "-c", "test -n \"$PATH\" && test -n \"$HOME\" && echo have-both"},
+		driver.ExecOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(res.Stdout) != "have-both" {
+		t.Errorf("PATH and HOME must survive: %q / %q", res.Stdout, res.Stderr)
+	}
+}
+
+// Declared entries come last, so a project that sets HOME or PATH in
+// sandbox.env means it — the same last-wins rule docker exec and the local
+// driver follow.
+func TestRunHostLetsADeclaredValueOverrideTheInheritedOne(t *testing.T) {
+	res, err := runHost(context.Background(), []string{"sh", "-c", "echo \"$HOME\""},
+		driver.ExecOpts{Env: []string{"HOME=/declared/home"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(res.Stdout) != "/declared/home" {
+		t.Errorf("declared env must win: %q", res.Stdout)
+	}
+}
+
+// declaredSandboxEnv is what both placements read from aurium.yaml. If the two
+// ever disagreed, env_passthrough would mean one thing in a container and
+// another on the host.
+func TestDeclaredSandboxEnvIsExactlyWhatTheProjectDeclared(t *testing.T) {
+	t.Setenv("AURIUM_TEST_PASSED", "through")
+	t.Setenv("AURIUM_TEST_NOT_DECLARED", "secret")
+
+	got := declaredSandboxEnv(config.Sandbox{
+		Env:            map[string]string{"GOFLAGS": "-mod=mod"},
+		EnvPassthrough: []string{"AURIUM_TEST_PASSED", "AURIUM_TEST_ABSENT"},
+	})
+	joined := strings.Join(got, " ")
+	for _, want := range []string{"GOFLAGS=-mod=mod", "AURIUM_TEST_PASSED=through"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("declared env is missing %q: %v", want, got)
+		}
+	}
+	if strings.Contains(joined, "AURIUM_TEST_NOT_DECLARED") {
+		t.Errorf("a variable the project did not name must not appear: %v", got)
+	}
+	// A declared name this process does not have is simply absent, not empty:
+	// an empty value would shadow one the container might otherwise inherit.
+	if strings.Contains(joined, "AURIUM_TEST_ABSENT") {
+		t.Errorf("an unset passthrough name must not be exported empty: %v", got)
+	}
+}
+
 // A cancelled or timed-out turn is an error, distinct from a failed command.
 // The killed process has no meaningful exit code, so we return an error that
 // names the cancellation and includes ctx.Err(), but preserve partial output.

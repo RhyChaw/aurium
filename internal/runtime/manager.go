@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -366,15 +367,7 @@ func (m *Manager) buildSpec(ctx context.Context, o CreateOpts, c store.Container
 	if o.Token != "" {
 		env = append(env, "AURIUM_TOKEN="+o.Token)
 	}
-	for k, v := range sb.Env {
-		env = append(env, k+"="+v)
-	}
-	// The agent's own provider credential, and only names the project declared.
-	for _, name := range sb.EnvPassthrough {
-		if v, ok := os.LookupEnv(name); ok {
-			env = append(env, name+"="+v)
-		}
-	}
+	env = append(env, declaredSandboxEnv(sb)...)
 	// A connected account wins over env_passthrough. The passthrough takes
 	// whatever this terminal happened to export, which is not a choice anybody
 	// made; an account is. Appending after the loop is what makes it win —
@@ -465,6 +458,53 @@ func (m *Manager) buildSpec(ctx context.Context, o CreateOpts, c store.Container
 	return spec, home, nil
 }
 
+// declaredSandboxEnv is everything aurium.yaml says an agent may see: the
+// literal sandbox.env entries, then the env_passthrough names this process
+// actually has.
+//
+// It is one function because both placements must agree on it. A container
+// gets it at create time through buildSpec; a host turn gets it per-turn
+// through Converse, because it has no container environment to inherit. If
+// these were two lists they would drift, and env_passthrough — whose whole
+// purpose is to name what crosses the boundary — would mean two things.
+func declaredSandboxEnv(sb config.Sandbox) []string {
+	var env []string
+	for k, v := range sb.Env {
+		env = append(env, k+"="+v)
+	}
+	// Only names the project declared, never the whole environment.
+	for _, name := range sb.EnvPassthrough {
+		if v, ok := os.LookupEnv(name); ok {
+			env = append(env, name+"="+v)
+		}
+	}
+	return env
+}
+
+// configFor resolves a project's aurium.yaml for a decision that has a safe
+// default, distinguishing "there is no config" from "the config is broken".
+//
+// A MISSING config is unambiguously the behaviour that predates host
+// placement: before it, a chat turn never read aurium.yaml at all, so a moved
+// project root or a deleted file must not break a project that never asked
+// for host placement. A config that EXISTS but cannot be parsed or validated
+// is a different thing — it may well say `agent_placement: host` — and is
+// still a hard failure, because guessing in-container there would put an
+// agent somewhere the project did not ask for.
+func (m *Manager) configFor(ctx context.Context, projectID string) (*config.Config, error) {
+	if m.Config == nil {
+		return nil, nil
+	}
+	cfg, err := m.Config(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return cfg, nil
+}
+
 // credentialFor resolves the provider credential an adapter should run on.
 //
 // A missing or broken account is not fatal here: the container still starts,
@@ -510,12 +550,9 @@ func (m *Manager) StartAgent(ctx context.Context, containerID, adapterName, role
 	if err != nil {
 		return store.Agent{}, err
 	}
-	var cfg *config.Config
-	if m.Config != nil {
-		cfg, err = m.Config(ctx, c.ProjectID)
-		if err != nil {
-			return store.Agent{}, fmt.Errorf("runtime: could not determine agent placement: %w", err)
-		}
+	cfg, err := m.configFor(ctx, c.ProjectID)
+	if err != nil {
+		return store.Agent{}, fmt.Errorf("runtime: could not determine agent placement: %w", err)
 	}
 	return m.startAgent(ctx, c, adapterName, role, model, "", cfg, agent.StartOpts{})
 }

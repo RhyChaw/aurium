@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,6 +64,19 @@ func (d *tmuxCapableDriver) Exec(ctx context.Context, id string, cmd []string, o
 	return d.Local.Exec(ctx, id, cmd, o)
 }
 
+// hostAgent is what every host-placement Create needs: the claude adapter and
+// a gateway token.
+//
+// The token is not decoration. Prepare refuses to write a host MCP config
+// without one (agent.ErrNoHostToken), because a config carrying
+// "Authorization: Bearer " is 401'd by the API middleware — and a host turn
+// whose only MCP server is refused answers "is_error": false with no tools at
+// all, which nothing downstream can tell from a real reply.
+func hostAgent(o *CreateOpts) {
+	o.Adapter = "claude"
+	o.Token = "tok_test"
+}
+
 func hostPlacementFixture(t *testing.T) (*fixture, *tmuxCapableDriver) {
 	t.Helper()
 	f := newFixture(t)
@@ -96,7 +110,7 @@ sandbox:
 // that Create actually wires wantsTmuxSession in rather than just defining it.
 func TestCreateWithHostPlacementStartsNoTmuxSessionEvenOnATmuxCapableDriver(t *testing.T) {
 	f, drv := hostPlacementFixture(t)
-	f.create("feature", func(o *CreateOpts) { o.Adapter = "claude" })
+	f.create("feature", hostAgent)
 
 	if drv.tmuxCalls != 0 {
 		t.Errorf("host placement must not start a tmux session, got %d tmux calls", drv.tmuxCalls)
@@ -108,7 +122,7 @@ func TestCreateWithHostPlacementStartsNoTmuxSessionEvenOnATmuxCapableDriver(t *t
 // message depends on Create having written it here.
 func TestCreateWithHostPlacementWritesTheHostMCPConfig(t *testing.T) {
 	f, _ := hostPlacementFixture(t)
-	c := f.create("feature", func(o *CreateOpts) { o.Adapter = "claude" })
+	c := f.create("feature", hostAgent)
 
 	agents, err := f.store.ListAgents(context.Background(), c.ID)
 	if err != nil {
@@ -164,20 +178,28 @@ func TestCreateInContainerPlacementWritesNoHostMCPConfig(t *testing.T) {
 	}
 }
 
-// Under host placement the agent still gets its usual CLAUDE.md instructions
-// (this project's context, D16's one MCP server) plus the placement notice —
-// Prepare adds to the file, it does not replace it.
+// Under host placement the CONTAINER still gets its usual CLAUDE.md
+// instructions — this project's context, D16's one MCP server — because the
+// container is unchanged by placement and an in-container turn in it would
+// read exactly this file.
+//
+// What it must NOT contain is the host placement notice. That used to be
+// written here, where a host process cannot read it: runHost launches with
+// the developer's environment, nothing sets HOME, so the process reads the
+// DEVELOPER's ~/.claude/CLAUDE.md. The notice and the projection travel in
+// argv now; TestConverseHostPlacementPutsTheNoticeAndContextInTheArgv is what
+// proves they arrive.
 func TestCreateWithHostPlacementStillWritesTheContainerInstructions(t *testing.T) {
 	f, _ := hostPlacementFixture(t)
-	c := f.create("feature", func(o *CreateOpts) { o.Adapter = "claude" })
+	c := f.create("feature", hostAgent)
 
 	home := filepath.Join(f.mgr.HomeRoot, c.ID)
 	md, err := os.ReadFile(filepath.Join(home, ".claude", "CLAUDE.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(md), "Use the aurium_exec tool for every command.") {
-		t.Errorf("CLAUDE.md missing the host placement notice:\n%s", md)
+	if strings.Contains(string(md), "Use the aurium_exec tool for every command.") {
+		t.Errorf("the notice must not be parked in a file no host process reads:\n%s", md)
 	}
 	if !strings.Contains(string(md), "@") {
 		t.Errorf("CLAUDE.md must still import the context projection:\n%s", md)
@@ -185,11 +207,32 @@ func TestCreateWithHostPlacementStillWritesTheContainerInstructions(t *testing.T
 }
 
 // recreate (used by Restore) is Prepare's only other call site, and it
-// chooses its own new agent id independently of Create's. The new agent it
-// starts must get its own host mcp config at that new id, same as Create's
-// agent does.
-func TestRecreateWithHostPlacementWritesTheHostMCPConfig(t *testing.T) {
+// chooses its own new agent id independently of Create's.
+//
+// Nothing in production mints container tokens yet (see the spec's "Nothing
+// mints container tokens"), and recreate has no way to recover the one the
+// container was created with: the database stores only a digest. So a restore
+// under host placement cannot write a usable MCP config, and must say so by
+// name rather than rebuild a container whose agent has no shell and no tools.
+func TestRecreateWithHostPlacementRefusesWithoutAToken(t *testing.T) {
 	f, _ := hostPlacementFixture(t)
+	c := f.create("feature", hostAgent)
+	ctx := context.Background()
+
+	err := f.mgr.recreate(ctx, c.ID, f.cfg, false)
+	if err == nil {
+		t.Fatal("recreate under host placement with no token must fail, not produce a toolless agent")
+	}
+	if !errors.Is(err, agent.ErrNoHostToken) {
+		t.Errorf("the failure must be nameable: %v", err)
+	}
+}
+
+// Restore of an in-container project must be untouched by any of that: it
+// never wanted a host MCP config and must not now need a token to be rebuilt.
+func TestRecreateInContainerPlacementStillWorks(t *testing.T) {
+	f := newFixture(t)
+	f.mgr.SnapshotHome = t.TempDir()
 	c := f.create("feature", func(o *CreateOpts) { o.Adapter = "claude" })
 	ctx := context.Background()
 
@@ -200,11 +243,9 @@ func TestRecreateWithHostPlacementWritesTheHostMCPConfig(t *testing.T) {
 	if len(before) != 1 {
 		t.Fatalf("want exactly one agent before recreate, got %d", len(before))
 	}
-
 	if err := f.mgr.recreate(ctx, c.ID, f.cfg, false); err != nil {
 		t.Fatal(err)
 	}
-
 	after, err := f.store.ListAgents(ctx, c.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -215,17 +256,7 @@ func TestRecreateWithHostPlacementWritesTheHostMCPConfig(t *testing.T) {
 	if after[0].ID == before[0].ID {
 		t.Fatal("recreate must replace the old agent row with a new one, not keep the old id")
 	}
-
-	path := agent.MCPConfigPath(f.mgr.SnapshotHome, after[0].ID)
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("recreate must write the new agent's host mcp config at its own id: %v", err)
-	}
-	server := mcpServerEntry(t, string(b))
-	if server.Type != "http" {
-		t.Errorf("recreated host mcp config must use HTTP transport; got %+v", server)
-	}
-	if !strings.HasSuffix(server.URL, "/mcp") {
-		t.Errorf("recreated host mcp config's url must end in /mcp; got %q", server.URL)
+	if _, err := os.Stat(agent.MCPConfigPath(f.mgr.SnapshotHome, after[0].ID)); !os.IsNotExist(err) {
+		t.Errorf("in-container recreate must not write a host mcp config, err=%v", err)
 	}
 }
