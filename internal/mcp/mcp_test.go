@@ -215,6 +215,9 @@ func TestClientReportsUpstreamExitWithItsOutput(t *testing.T) {
 // message therefore used to be reported as "(no output)" — the exact bare
 // failure exitError exists to prevent. This pins the ordering down: stdout
 // closes first, so done is closed well before the explanation is written.
+// The sleep only has to establish that ordering, so it is kept far below
+// exitError's 250ms budget — a sleep that eats most of the budget turns this
+// into a timing flake on a loaded runner rather than a test of the ordering.
 func TestClientWaitsForStderrBeforeExplainingAnExit(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -224,7 +227,7 @@ func TestClientWaitsForStderrBeforeExplainingAnExit(t *testing.T) {
 		t.Skip("no shell available")
 	}
 	client, err := SpawnStdio(ctx, sh,
-		[]string{"-c", "exec 1>&-; sleep 0.2; echo 'fatal: missing GITHUB_TOKEN' >&2; exit 1"}, os.Environ())
+		[]string{"-c", "exec 1>&-; sleep 0.05; echo 'fatal: missing GITHUB_TOKEN' >&2; exit 1"}, os.Environ())
 	if err != nil {
 		t.Fatal(err)
 	}
