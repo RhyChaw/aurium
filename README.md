@@ -210,4 +210,4 @@ make vet
 everything needing them sits behind a build tag.
 
 Deviations from the ERD are recorded in
-[`docs/superpowers/plans/2026-09-08-aurium-phases-abc.md`](docs/superpowers/plans/2026-09-08-aurium-phases-abc.md).
+[`documents/superpowers/plans/2026-09-08-aurium-phases-abc.md`](documents/superpowers/plans/2026-09-08-aurium-phases-abc.md).

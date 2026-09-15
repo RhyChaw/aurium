@@ -58,7 +58,7 @@ test-race:
 
 # Container-runtime integration tests. NOTE: no such tests exist yet — this
 # target currently runs the same suite with an unused tag. See the
-# stubs-and-gaps table in docs/superpowers/plans/.
+# stubs-and-gaps table in documents/superpowers/plans/.
 .PHONY: test-docker
 test-docker:
 	$(GO) test -tags docker $(PKGS)

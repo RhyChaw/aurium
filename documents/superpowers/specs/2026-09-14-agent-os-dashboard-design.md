@@ -4,7 +4,7 @@
 **Status:** accepted, implemented in the same change
 **Extends:** `Aurium_ERD_v0.2.md` §11.3 (dashboard v1), §9.1 (base-URL provider
 proxy, deferred), §12.2 (`aurium.yaml`), and closes four rows of
-`docs/GAPS.md`.
+`documents/GAPS.md`.
 
 ## The problem
 
