@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -101,11 +102,7 @@ func Checks(home, addr string) []Check {
 				}
 				return GoVersionAtLeast(string(out), 1, 25)
 			},
-			Remedy: Remedy{
-				Kind:    Manual,
-				Command: "./setup.sh",
-				Note:    "installs a checksum-verified go1.27.1 into ~/.local/go without sudo",
-			},
+			Remedy: goRemedy(),
 		},
 		{
 			Name:     "git",
@@ -177,6 +174,45 @@ func Checks(home, addr string) []Check {
 		})
 	}
 	return checks
+}
+
+// goRemedy tells a contributor what to actually do about a failing "go"
+// check, and that depends on which of two very different things is true.
+// Both are Manual: PATH lives in a shell profile that is not this tool's to
+// rewrite, so neither case can be applied unprivileged by --fix.
+//
+//   - Nothing resolves on PATH, and setup.sh never installed anything at
+//     ~/.local/go/bin either: "./setup.sh" is correct, first-time advice.
+//   - setup.sh already installed a working go1.27.1 at ~/.local/go/bin/go,
+//     but this shell's PATH doesn't include it: telling them to run
+//     setup.sh again is circular — it would do the same work and change
+//     nothing. The actual fix is putting that directory on PATH.
+//
+// Something already on PATH (even a too-old or broken go) still gets the
+// setup.sh advice: that is the tool that gets them a working toolchain.
+func goRemedy() Remedy {
+	if _, err := exec.LookPath("go"); err == nil {
+		return Remedy{
+			Kind:    Manual,
+			Command: "./setup.sh",
+			Note:    "installs a checksum-verified go1.27.1 into ~/.local/go without sudo",
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		candidate := filepath.Join(home, ".local", "go", "bin", "go")
+		if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
+			return Remedy{
+				Kind:    Manual,
+				Command: `export PATH="$HOME/.local/go/bin:$PATH"`,
+				Note:    "setup.sh already installed go1.27.1 there; add this line to your shell profile to make it permanent",
+			}
+		}
+	}
+	return Remedy{
+		Kind:    Manual,
+		Command: "./setup.sh",
+		Note:    "installs a checksum-verified go1.27.1 into ~/.local/go without sudo",
+	}
 }
 
 func gitRemedy() Remedy {

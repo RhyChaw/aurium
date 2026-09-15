@@ -67,15 +67,33 @@ install_go() {
 
 detect_platform
 
+fresh_install=0
 if go_is_usable; then
 	GO=go
 else
 	if [ ! -x "${PREFIX}/go/bin/go" ]; then
 		install_go
+		fresh_install=1
 	fi
 	GO="${PREFIX}/go/bin/go"
+	# The build below calls $GO by absolute path, so it doesn't strictly need
+	# this — but doctor's own "go" check, which the handoff at the end of
+	# this script runs, looks go up on PATH by name. Without this export a
+	# bootstrap that installs and builds everything correctly would still end
+	# by reporting go as missing.
+	export PATH="${PREFIX}/go/bin:${PATH}"
 fi
 say "using $("$GO" version)"
+
+# Only on a fresh install: someone who already has ~/.local/go/bin/go from a
+# prior run has presumably already seen this, or is fine without it (a CI
+# container, say). Printed, never written to a shell profile — rewriting a
+# stranger's .zshrc unasked is exactly the kind of thing that makes a
+# `curl | sh` script untrustworthy.
+if [ "$fresh_install" -eq 1 ]; then
+	say "note: ${PREFIX}/go/bin is on PATH for this run only; add it to your shell profile to keep it there:"
+	say "  export PATH=\"\$HOME/.local/go/bin:\$PATH\""
+fi
 
 # CGO off because Aurium's SQLite (modernc.org/sqlite) is pure Go — so an
 # unusable clang cannot stop the build. -buildvcs=false because git may be

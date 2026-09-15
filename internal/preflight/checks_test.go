@@ -2,6 +2,8 @@ package preflight
 
 import (
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -73,6 +75,57 @@ func TestChecksOmitsThePortCheckWithoutAnAddress(t *testing.T) {
 		if c.Name == "port" {
 			t.Fatal("an empty addr must omit the port check")
 		}
+	}
+}
+
+// goCheckRemedy isolates the "go" check's remedy under a fake PATH and HOME,
+// the way writeFakeBin isolates a fake binary elsewhere in this package.
+func goCheckRemedy(t *testing.T) string {
+	t.Helper()
+	for _, c := range Checks(t.TempDir(), "") {
+		if c.Name == "go" {
+			return c.Remedy.Command
+		}
+	}
+	t.Fatal("go check missing from the table")
+	return ""
+}
+
+// The regression this guards against: a contributor who already ran
+// setup.sh, and for whom it already worked, must never be told to run it
+// again — that advice is circular and can never succeed. Nothing installed
+// anywhere gets the ./setup.sh advice; a toolchain setup.sh already placed
+// at ~/.local/go/bin, just not on this shell's PATH, must get different
+// advice instead. If the remedy ever collapses back to a single message,
+// one of these two must fail.
+func TestGoRemedyRecommendsSetupWhenNothingIsInstalledAnywhere(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+
+	if rem := goCheckRemedy(t); !strings.Contains(rem, "setup.sh") {
+		t.Errorf("go missing everywhere must recommend setup.sh, got %q", rem)
+	}
+}
+
+func TestGoRemedyRecommendsPATHWhenSetupAlreadyInstalledIt(t *testing.T) {
+	home := t.TempDir()
+	goBin := filepath.Join(home, ".local", "go", "bin")
+	if err := os.MkdirAll(goBin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fakeGo := "#!/bin/sh\necho go version go1.27.1 darwin/arm64\n"
+	if err := os.WriteFile(filepath.Join(goBin, "go"), []byte(fakeGo), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir()) // deliberately does not include goBin
+
+	rem := goCheckRemedy(t)
+	if strings.Contains(rem, "setup.sh") {
+		t.Fatalf("go already installed by setup.sh must not be told to rerun it, got %q", rem)
+	}
+	if !strings.Contains(rem, "PATH") || !strings.Contains(rem, ".local/go/bin") {
+		t.Errorf("go present but off PATH must recommend adding ~/.local/go/bin to PATH, got %q", rem)
 	}
 }
 
