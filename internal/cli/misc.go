@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"github.com/RhyChaw/aurium/internal/agent"
 	"github.com/RhyChaw/aurium/internal/app"
 	"github.com/RhyChaw/aurium/internal/events"
+	"github.com/RhyChaw/aurium/internal/preflight"
 	"github.com/RhyChaw/aurium/internal/runtime/driver"
 	"github.com/RhyChaw/aurium/internal/store"
 	"github.com/spf13/cobra"
@@ -303,12 +306,47 @@ func newStatusCmd() *cobra.Command {
 	}
 }
 
+// renderDoctor prints results and reports whether the machine is usable.
+// Optional failures are printed but do not fail the command.
+func renderDoctor(w io.Writer, results []preflight.Result) bool {
+	ok := true
+	for _, r := range results {
+		switch {
+		case r.OK:
+			fmt.Fprintf(w, "  ok    %s\n", r.Name)
+		case r.Severity == string(preflight.Optional):
+			fmt.Fprintf(w, "  warn  %s: %s\n", r.Name, r.Error)
+		default:
+			ok = false
+			fmt.Fprintf(w, "  FAIL  %s: %s\n", r.Name, r.Error)
+		}
+		if !r.OK && r.Remedy != "" {
+			fmt.Fprintf(w, "        fix: %s\n", r.Remedy)
+		}
+	}
+	return ok
+}
+
 func newDoctorCmd() *cobra.Command {
-	return &cobra.Command{
+	var (
+		jsonOut bool
+		addr    string
+	)
+
+	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Check that this machine can run Aurium",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ok := true
+			home, _ := app.Home()
+			results := preflight.Run(cmd.Context(), preflight.Checks(home, addr))
+
+			if jsonOut {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(results)
+			}
+
+			fmt.Fprintln(cmd.OutOrStdout(), "Aurium doctor")
+			ok := renderDoctor(cmd.OutOrStdout(), results)
+
 			check := func(name string, err error, hint string) {
 				if err == nil {
 					fmt.Printf("  ok    %s\n", name)
@@ -319,24 +357,6 @@ func newDoctorCmd() *cobra.Command {
 				if hint != "" {
 					fmt.Printf("        %s\n", hint)
 				}
-			}
-
-			fmt.Println("Aurium doctor")
-			check("git", binaryExists("git"), "install git")
-
-			if err := binaryExists("docker"); err != nil {
-				check("docker", err, "install Docker Desktop, OrbStack or podman")
-			} else {
-				check("docker", nil, "")
-				check("docker daemon", dockerRunning(), "start Docker; containers cannot be created without it")
-			}
-			check("tmux (host, optional)", binaryExists("tmux"),
-				"only needed on the host for convenience; containers get their own from the image")
-
-			home, err := app.Home()
-			check("~/.aurium", err, "")
-			if err == nil {
-				fmt.Printf("        %s\n", home)
 			}
 
 			_ = withApp(func(ctx context.Context, a *app.App) error {
@@ -372,15 +392,11 @@ func newDoctorCmd() *cobra.Command {
 			return nil
 		},
 	}
-}
-
-func binaryExists(name string) error {
-	_, err := exec.LookPath(name)
-	return err
-}
-
-func dockerRunning() error {
-	return exec.Command("docker", "info").Run()
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "machine-readable output")
+	// doctor checks the address the daemon would bind, so it has to know it. The
+	// default matches `aurium up`.
+	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:7770", "loopback address to check")
+	return cmd
 }
 
 func anyEnvSet(names []string) bool {
