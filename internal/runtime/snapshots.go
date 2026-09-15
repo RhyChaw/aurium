@@ -47,6 +47,7 @@ func (m *Manager) Snapshot(ctx context.Context, containerID string, cfg *config.
 		Trigger:        trigger,
 		IncludeIgnored: cfg.Snapshot.IncludeIgnored,
 		Volumes:        volumesFor(cfg, c),
+		Placement:      cfg.Sandbox.AgentPlacement,
 	})
 }
 
@@ -59,8 +60,9 @@ func (m *Manager) Restore(ctx context.Context, containerID string, seq int,
 		return err
 	}
 	if err := snapshot.Restore(ctx, m.SnapshotDeps(), containerID, seq, snapshot.RestoreOpts{
-		Backup:  backup,
-		Volumes: volumesFor(cfg, c),
+		Backup:    backup,
+		Volumes:   volumesFor(cfg, c),
+		Placement: cfg.Sandbox.AgentPlacement,
 	}); err != nil {
 		return err
 	}
@@ -101,6 +103,7 @@ func (m *Manager) Fork(ctx context.Context, sourceID string, cfg *config.Config,
 		Trigger:        snapshot.TriggerAuto,
 		IncludeIgnored: cfg.Snapshot.IncludeIgnored,
 		Volumes:        volumesFor(cfg, source),
+		Placement:      cfg.Sandbox.AgentPlacement,
 	})
 	if err != nil {
 		return store.Container{}, err

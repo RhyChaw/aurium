@@ -129,11 +129,27 @@ paragraph in the instruction file: it is cheap, and its absence is expensive.
 
 **Snapshots lose conversation resume.** `--continue` works today because the
 transcript sits in `$HOME` inside the rootfs that `docker commit` captures. On
-the host it is in `~/.claude`, outside it. The `local` driver already reports
-`Snapshot: false` rather than faking it, and the host driver must be as honest:
-either the snapshot engine learns to capture the host transcript directory, or
-the driver's capabilities say conversation resume is not available. It must not
-report a capability it half has.
+the host it is in `~/.claude`, outside it. This cannot be expressed as a driver
+capability: `Caps` is per-driver, and placement is not a driver — the same
+Docker driver captures the conversation under one placement and not the other.
+So the honesty is attached to the snapshot record itself, not the driver: every
+`store.Snapshot` carries `IncludesConversation` and, when it is false, a `Note`
+explaining why, set from `agent_placement` at the moment the snapshot is taken.
+`aurium snapshot`, `snapshot list` and `restore` all surface it before a
+restore happens, not after. Source, rootfs and volumes are still captured
+exactly the same either way; only the conversation is not, under `host`.
+
+**Nothing mints container tokens.** `store.CreateToken` exists
+(`internal/store/tokens.go`) and is called from nowhere in production code.
+The in-container shim expects `/run/aurium/token` and `$AURIUM_TOKEN`; nothing
+writes either. This predates host placement and is not a defect introduced by
+it — it affects both placements equally, since both reach the gateway the same
+way. It means the MCP gateway path cannot authenticate today, for the
+in-container agent as much as for a host-placed one: `aurium_exec` and every
+other gateway tool are wired and tested, but a caller with no minted token has
+nothing to present. Host placement is otherwise structurally complete and
+still cannot reach the gateway until token minting exists. That is a separate
+piece of work, not something this design closes.
 
 **The wall is cooperative, not kernel-enforced.** `--disallowedTools` is the
 agent's own runtime honouring a flag, not a namespace refusing a syscall. For

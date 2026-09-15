@@ -8,6 +8,7 @@ import (
 	"github.com/RhyChaw/aurium/internal/app"
 	"github.com/RhyChaw/aurium/internal/runtime"
 	"github.com/RhyChaw/aurium/internal/runtime/snapshot"
+	"github.com/RhyChaw/aurium/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -19,8 +20,10 @@ func newSnapshotCmd() *cobra.Command {
 		Short: "Capture a container's state",
 		Long: "Captures source (including uncommitted and untracked work), the container\n" +
 			"filesystem, and per-container volumes, while the container is paused.\n" +
-			"Process memory is not captured; the agent's conversation is, because it\n" +
-			"lives in $HOME inside the container filesystem.",
+			"Process memory is not captured. Under agent_placement: in-container, the\n" +
+			"agent's conversation is, because it lives in $HOME inside the container\n" +
+			"filesystem. Under agent_placement: host it is not: the transcript lives\n" +
+			"in ~/.claude on the host, outside anything this command captures.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return withApp(func(ctx context.Context, a *app.App) error {
@@ -47,6 +50,9 @@ func newSnapshotCmd() *cobra.Command {
 				fmt.Printf("  head  %s\n", shortSHA(sn.HeadSHA))
 				if sn.Bytes > 0 {
 					fmt.Printf("  size  %s of volume archives\n", humanBytes(sn.Bytes))
+				}
+				if !sn.IncludesConversation {
+					fmt.Printf("  note  %s\n", sn.Note)
 				}
 				return nil
 			})
@@ -82,11 +88,11 @@ func newSnapshotListCmd() *cobra.Command {
 					return nil
 				}
 				w := tabWriter()
-				fmt.Fprintln(w, "SEQ\tLABEL\tTRIGGER\tHEAD\tSIZE\tCREATED")
+				fmt.Fprintln(w, "SEQ\tLABEL\tTRIGGER\tHEAD\tSIZE\tCREATED\tCONVERSATION")
 				for _, s := range snaps {
-					fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\n",
+					fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
 						s.Seq, dash(s.Label), s.Trigger, shortSHA(s.HeadSHA),
-						humanBytes(s.Bytes), s.CreatedAt)
+						humanBytes(s.Bytes), s.CreatedAt, conversationCol(s))
 				}
 				return w.Flush()
 			})
@@ -114,6 +120,13 @@ func newRestoreCmd() *cobra.Command {
 				_, _, cfg, err := a.Project(ctx, cwd())
 				if err != nil {
 					return wrap(CodeUsage, err)
+				}
+
+				// Look the snapshot up first so a missing conversation is
+				// said before the restore happens, not discovered afterwards
+				// from a resume hint that silently started a fresh one.
+				if snap, err := a.Store.GetSnapshotBySeq(ctx, c.ID, seq); err == nil && !snap.IncludesConversation {
+					fmt.Printf("note: %s\n", snap.Note)
 				}
 
 				// Backup by default: restore is the one operation that
@@ -251,6 +264,19 @@ func newSnapshotGCCmd() *cobra.Command {
 			})
 		},
 	}
+}
+
+// conversationCol renders whether a snapshot's conversation was captured, so
+// the answer is visible in `snapshot list` before a restore rather than
+// discovered by a resume hint that silently starts a fresh conversation.
+func conversationCol(s store.Snapshot) string {
+	if s.IncludesConversation {
+		return "yes"
+	}
+	if s.Note != "" {
+		return "no (" + s.Note + ")"
+	}
+	return "no"
 }
 
 func dash(s string) string {
