@@ -48,6 +48,7 @@ type Gateway struct {
 	IPC       *ipc.Bus
 	Snapshots SnapshotTaker
 	Delegator Delegator
+	Executor  Executor
 
 	// upstreams are keyed by integration id.
 	upstreams map[string]Upstream
@@ -62,6 +63,13 @@ type SnapshotTaker interface {
 type Delegator interface {
 	Delegate(ctx context.Context, req DelegateRequest) (DelegateResult, error)
 	Merge(ctx context.Context, masterContainerID, childRef string) (MergeResult, error)
+}
+
+// Executor runs a command inside a container. It is an interface for the same
+// reason Delegator is: internal/gateway must not import internal/runtime,
+// which imports the gateway back.
+type Executor interface {
+	ExecInContainer(ctx context.Context, containerID string, command string) (stdout string, exitCode int, err error)
 }
 
 // DelegateRequest asks for a subtask to be run.

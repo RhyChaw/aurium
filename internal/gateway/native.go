@@ -158,6 +158,16 @@ func (g *Gateway) nativeTools(caller Caller) []mcp.Tool {
 				"reason": str("why it is necessary"),
 			}, "action", "reason"),
 		},
+		{
+			Name: "aurium_exec",
+			Description: "Run a shell command inside this agent's container. Under host " +
+				"placement the agent's own shell is unavailable, and this is where all " +
+				"project commands run — the container has the project's toolchain, the " +
+				"host does not.",
+			InputSchema: obj(map[string]any{
+				"command": str("the shell command to run"),
+			}, "command"),
+		},
 	}
 
 	// Delegation is a master-only capability (§9.2). A worker that could
@@ -421,6 +431,22 @@ func (g *Gateway) callNative(ctx context.Context, caller Caller, name string, ra
 			return mcp.ErrorResult("%v", err), nil
 		}
 		return mcp.JSONResult(res), nil
+
+	case "aurium_exec":
+		if g.Executor == nil {
+			return mcp.ErrorResult("aurium_exec is not available in this configuration"), nil
+		}
+		command := argStr(args, "command")
+		if strings.TrimSpace(command) == "" {
+			return mcp.ErrorResult("command is required"), nil
+		}
+		out, code, err := g.Executor.ExecInContainer(ctx, caller.ContainerID, command)
+		if err != nil {
+			return mcp.ErrorResult("exec failed: %v", err), nil
+		}
+		// Every command is recorded. This is already more than Bash inside a
+		// container ever was, where Aurium saw nothing at all.
+		return mcp.JSONResult(map[string]any{"stdout": out, "exit_code": code}), nil
 	}
 
 	return nil, mcp.Errorf(mcp.CodeMethodNotFound, "unknown tool %q", name)
