@@ -122,6 +122,73 @@ func TestRun(t *testing.T) {
 	}
 }
 
+// An InfoError is a pass with something to say, not a failure: it must not
+// set OK false, must not pull in the remedy, and must carry its sentence
+// through to Detail where every surface renders it.
+func TestRunGradesAnInfoErrorAsAPassWithDetail(t *testing.T) {
+	results := Run(context.Background(), []Check{{
+		Name:     "port",
+		Severity: Required,
+		Probe:    func(ctx context.Context) error { return Info("held by our own daemon") },
+		Remedy:   Remedy{Kind: Manual, Command: "aurium up --addr 127.0.0.1:7771"},
+	}})
+
+	if !results[0].OK {
+		t.Error("an InfoError must not fail the check")
+	}
+	if results[0].Detail != "held by our own daemon" {
+		t.Errorf("the info must reach Detail, got %q", results[0].Detail)
+	}
+	if results[0].Error != "" || results[0].Remedy != "" {
+		t.Errorf("a passing check must carry no error and no remedy: %+v", results[0])
+	}
+}
+
+// Nor may Fix try to remedy a machine that is fine.
+func TestFixLeavesAnInfoPassAlone(t *testing.T) {
+	ran := false
+	results := Fix(context.Background(), []Check{{
+		Name:     "port",
+		Severity: Required,
+		Probe:    func(ctx context.Context) error { return Info("already running") },
+		Remedy:   Remedy{Kind: Auto, Fix: func(ctx context.Context) error { ran = true; return nil }},
+	}})
+
+	if ran {
+		t.Error("Fix must not apply a remedy to a check that passed with an info")
+	}
+	if !results[0].OK {
+		t.Errorf("an info pass must stay passing through Fix: %+v", results[0])
+	}
+}
+
+// Run is serial and three surfaces block on it — doctor's output, the
+// /v1/preflight handler and the wizard's first paint — so the table carries
+// its own deadline above the per-probe ones. A check the deadline stopped is
+// reported as not run, never as passing: a check nobody ran is not a check
+// that succeeded.
+func TestRunReportsUnrunChecksWhenTheDeadlineIsAlreadyGone(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	ran := false
+	results := Run(ctx, []Check{{
+		Name:     "slow",
+		Severity: Required,
+		Probe:    func(context.Context) error { ran = true; return nil },
+	}})
+
+	if ran {
+		t.Error("no probe may start once the run's deadline is gone")
+	}
+	if results[0].OK {
+		t.Errorf("an unrun check must not be reported as passing: %+v", results[0])
+	}
+	if !strings.Contains(results[0].Error, "not checked") {
+		t.Errorf("the row must say it was never checked, got %q", results[0].Error)
+	}
+}
+
 func TestFixAppliesAutoRemediesAndRerunsTheProbe(t *testing.T) {
 	fixed := false
 	checks := []Check{{

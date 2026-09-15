@@ -3,7 +3,6 @@ package api
 import (
 	"net/http"
 
-	"github.com/RhyChaw/aurium/internal/app"
 	"github.com/RhyChaw/aurium/internal/preflight"
 )
 
@@ -18,11 +17,10 @@ func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
 	if !s.hostOnly(w, r) {
 		return
 	}
-	home, _ := app.Home()
 	// An empty addr omits the port check: over HTTP a port check is
 	// meaningless, because if a caller reached this route the port is
 	// necessarily held — by the very daemon answering the request.
 	// Reporting that as a failure would report success as a problem.
-	results := preflight.Run(r.Context(), preflight.Checks(home, ""))
+	results := preflight.Run(r.Context(), preflight.Checks(""))
 	writeJSON(w, http.StatusOK, map[string]any{"checks": results})
 }

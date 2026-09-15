@@ -87,3 +87,25 @@ func TestDoctorJSONOptionalFailureStaysOK(t *testing.T) {
 		t.Errorf("an optional failure must not fail --json mode: %v", err)
 	}
 }
+
+// A passing row with something to say must say it. The port check reports
+// "held by your own Aurium daemon" this way — a fact worth printing that is
+// emphatically not a failure, and printing a bare "ok port" would throw away
+// the only sentence that explains why a held port is fine.
+func TestRenderDoctorPrintsDetailOnAPassingRow(t *testing.T) {
+	var sb strings.Builder
+	ok := renderDoctor(&sb, []preflight.Result{
+		{Name: "port", OK: true, Severity: "required",
+			Detail: "held by an Aurium daemon (version 0.1.0-dev, pid 99) — your own"},
+	})
+
+	if !ok {
+		t.Error("a passing row must not fail the command")
+	}
+	if !strings.Contains(sb.String(), "ok    port") {
+		t.Errorf("the row must still read as ok:\n%s", sb.String())
+	}
+	if !strings.Contains(sb.String(), "your own") {
+		t.Errorf("the detail must be printed:\n%s", sb.String())
+	}
+}

@@ -259,3 +259,32 @@ func TestCommandsWorkFromInsideAContainerWorktree(t *testing.T) {
 		t.Fatalf("unexpected output:\n%s", out)
 	}
 }
+
+// doctor and doctor --json must be the same diagnostic. The --json path
+// returned before the app-level block ever ran, so `database`, `project
+// config`, the config warnings and the adapter-credential warning appeared
+// only in the human table — a failing DB ping failed `doctor` and passed
+// `doctor --json`, which is the one CI reads.
+//
+// --addr 127.0.0.1:0 keeps the port check out of it: port 0 is always
+// bindable, so both runs see the same machine and any disagreement is the
+// bug this guards against, not a race with whatever holds 7770.
+func TestDoctorJSONAndHumanModeAgree(t *testing.T) {
+	e := newEnv(t)
+
+	jsonOut, jsonErr := e.auriumErr("doctor", "--json", "--addr", "127.0.0.1:0")
+	humanOut, humanErr := e.auriumErr("doctor", "--addr", "127.0.0.1:0")
+
+	if (jsonErr == nil) != (humanErr == nil) {
+		t.Errorf("the two modes disagreed on the verdict: --json err=%v, human err=%v\n--- json ---\n%s\n--- human ---\n%s",
+			jsonErr, humanErr, jsonOut, humanOut)
+	}
+	for _, want := range []string{`"name":"database"`, `"name":"project config"`} {
+		if !strings.Contains(jsonOut, want) {
+			t.Errorf("--json is missing the app-level check %s:\n%s", want, jsonOut)
+		}
+	}
+	if !strings.Contains(humanOut, "database") {
+		t.Errorf("the human table is missing the database check:\n%s", humanOut)
+	}
+}

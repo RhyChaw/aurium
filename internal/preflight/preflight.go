@@ -51,19 +51,61 @@ type Result struct {
 	Error      string `json:"error,omitempty"`
 	Remedy     string `json:"remedy,omitempty"`
 	RemedyKind string `json:"remedy_kind,omitempty"`
+	// Detail explains a *passing* row. Not every true thing a probe learns is
+	// a complaint: "the port is held, by your own Aurium daemon" is the answer
+	// someone wants to read, and reporting it as a failure would report a
+	// healthy machine as broken.
+	Detail string `json:"detail,omitempty"`
 }
+
+// InfoError is what a probe returns when it found something worth saying that
+// is nevertheless not a failure. Run turns it into a passing Result carrying
+// Detail, so a probe keeps one return type and callers keep one verdict.
+type InfoError struct{ Msg string }
+
+func (e *InfoError) Error() string { return e.Msg }
+
+// Info builds an InfoError. Probes return it instead of nil when the reason
+// they passed is itself worth printing.
+func Info(format string, a ...any) error {
+	return &InfoError{Msg: fmt.Sprintf(format, a...)}
+}
+
+// RunTimeout bounds the whole table, not just each probe. Every probe already
+// carries its own deadline, so this only ever trips when one escapes it — but
+// Run is serial and three surfaces block on it (doctor's output, the
+// /v1/preflight handler, the dashboard wizard's first paint), so "no single
+// probe can hang everything" needs a backstop that does not depend on every
+// probe being written correctly.
+const RunTimeout = 30 * time.Second
 
 // Run executes every check in order and never stops early: a contributor
 // wants the whole list of what is wrong, not the first thing that failed.
 func Run(ctx context.Context, checks []Check) []Result {
+	ctx, cancel := context.WithTimeout(ctx, RunTimeout)
+	defer cancel()
+
 	out := make([]Result, 0, len(checks))
 	for _, c := range checks {
 		r := Result{Name: c.Name, Severity: string(c.Severity), OK: true}
-		if err := c.Probe(ctx); err != nil {
+		if err := ctx.Err(); err != nil {
+			// Say so rather than reporting an unrun check as passing. A check
+			// nobody ran is not a check that succeeded.
 			r.OK = false
-			r.Error = err.Error()
-			r.Remedy = c.Remedy.Command
-			r.RemedyKind = string(c.Remedy.Kind)
+			r.Error = "not checked: the run exceeded its overall deadline"
+			out = append(out, r)
+			continue
+		}
+		if err := c.Probe(ctx); err != nil {
+			var info *InfoError
+			if errors.As(err, &info) {
+				r.Detail = info.Msg
+			} else {
+				r.OK = false
+				r.Error = err.Error()
+				r.Remedy = c.Remedy.Command
+				r.RemedyKind = string(c.Remedy.Kind)
+			}
 		}
 		out = append(out, r)
 	}
@@ -79,12 +121,23 @@ func Fix(ctx context.Context, checks []Check) []Result {
 		if c.Remedy.Kind != Auto || c.Remedy.Fix == nil {
 			continue
 		}
-		if c.Probe(ctx) == nil {
+		if passed(c.Probe(ctx)) {
 			continue
 		}
 		_ = c.Remedy.Fix(ctx) // a failed fix simply leaves the re-probe failing
 	}
 	return Run(ctx, checks)
+}
+
+// passed reports whether a probe's return value means the check is satisfied.
+// nil obviously does; so does an InfoError, which is a pass with something to
+// say — applying a remedy to one would be fixing a machine that is fine.
+func passed(err error) bool {
+	if err == nil {
+		return true
+	}
+	var info *InfoError
+	return errors.As(err, &info)
 }
 
 // BinaryWorks reports whether name is on PATH *and* actually runs.

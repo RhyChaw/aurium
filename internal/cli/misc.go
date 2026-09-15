@@ -339,6 +339,8 @@ func writeDoctorJSON(w io.Writer, results []preflight.Result) error {
 func renderDoctor(w io.Writer, results []preflight.Result) bool {
 	for _, r := range results {
 		switch {
+		case r.OK && r.Detail != "":
+			fmt.Fprintf(w, "  ok    %s: %s\n", r.Name, r.Detail)
 		case r.OK:
 			fmt.Fprintf(w, "  ok    %s\n", r.Name)
 		case r.Severity == string(preflight.Optional):
@@ -364,62 +366,26 @@ func newDoctorCmd() *cobra.Command {
 		Use:   "doctor",
 		Short: "Check that this machine can run Aurium",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, _ := app.Home()
-			checks := preflight.Checks(home, addr)
+			checks := preflight.Checks(addr)
 			var results []preflight.Result
 			if fix {
 				results = preflight.Fix(cmd.Context(), checks)
 			} else {
 				results = preflight.Run(cmd.Context(), checks)
 			}
+			// Appended to the same slice both modes render and both modes
+			// grade. These rows used to be printed straight to stdout from
+			// inside the human branch, below a `return` that --json took
+			// first: a failing database ping failed `doctor` and passed
+			// `doctor --json`, and CI reads the second one.
+			results = append(results, appDiagnostics()...)
 
 			if jsonOut {
 				return writeDoctorJSON(cmd.OutOrStdout(), results)
 			}
 
 			fmt.Fprintln(cmd.OutOrStdout(), "Aurium doctor")
-			ok := renderDoctor(cmd.OutOrStdout(), results)
-
-			check := func(name string, err error, hint string) {
-				if err == nil {
-					fmt.Printf("  ok    %s\n", name)
-					return
-				}
-				ok = false
-				fmt.Printf("  FAIL  %s: %v\n", name, err)
-				if hint != "" {
-					fmt.Printf("        %s\n", hint)
-				}
-			}
-
-			_ = withApp(func(ctx context.Context, a *app.App) error {
-				check("database", a.Store.DB().Ping(), "")
-				p, _, cfg, err := a.Project(ctx, cwd())
-				if err != nil {
-					fmt.Printf("  info  not inside an initialised project (%v)\n", err)
-					return nil
-				}
-				check("project config", nil, "")
-				for _, w := range cfg.Warnings() {
-					fmt.Printf("  warn  %s\n", w)
-				}
-				cs, _ := a.Store.ListContainers(ctx, p.ID)
-				fmt.Printf("  info  %d container(s)\n", len(cs))
-
-				// Verify the adapters' credentials are actually present, since
-				// a missing key fails deep inside a container otherwise.
-				reg := agent.DefaultRegistry()
-				if ad, ok := reg.Get(cfg.Sandbox.Agent); ok {
-					names := ad.AuthEnv()
-					if len(names) > 0 && !anyEnvSet(names) {
-						fmt.Printf("  warn  none of %v is set; the %s agent will not authenticate\n",
-							names, cfg.Sandbox.Agent)
-					}
-				}
-				return nil
-			})
-
-			if !ok {
+			if !renderDoctor(cmd.OutOrStdout(), results) {
 				return &ExitError{Code: CodeUsage}
 			}
 			return nil
@@ -431,6 +397,68 @@ func newDoctorCmd() *cobra.Command {
 	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:7770", "loopback address to check")
 	cmd.Flags().BoolVar(&fix, "fix", false, "apply automatic remedies")
 	return cmd
+}
+
+// appDiagnostics runs the checks that need an open App — the database, the
+// project config, the agent adapter's credentials — and returns them in the
+// same shape as the machine checks, so there is one list, one renderer and
+// one verdict rather than a second diagnostic reachable only without --json.
+//
+// Opening the App failing is reported as an optional row rather than a
+// required one: that error used to be discarded outright, and this wave is
+// not the place to start failing `doctor` on a case nobody has looked at. It
+// is visible now, which is the part that was missing.
+func appDiagnostics() []preflight.Result {
+	var out []preflight.Result
+	required := func(name string, err error) {
+		r := preflight.Result{Name: name, OK: err == nil, Severity: string(preflight.Required)}
+		if err != nil {
+			r.Error = err.Error()
+		}
+		out = append(out, r)
+	}
+	info := func(name, detail string) {
+		out = append(out, preflight.Result{
+			Name: name, OK: true, Severity: string(preflight.Optional), Detail: detail,
+		})
+	}
+	warn := func(name, msg string) {
+		out = append(out, preflight.Result{
+			Name: name, OK: false, Severity: string(preflight.Optional), Error: msg,
+		})
+	}
+
+	if err := withApp(func(ctx context.Context, a *app.App) error {
+		required("database", a.Store.DB().Ping())
+
+		p, _, cfg, err := a.Project(ctx, cwd())
+		if err != nil {
+			// Not being inside a project is not a fault: `doctor` is run from
+			// anywhere, and most often from a clone before `aurium init`.
+			info("project config", fmt.Sprintf("not inside an initialised project (%v)", err))
+			return nil
+		}
+		required("project config", nil)
+		for _, w := range cfg.Warnings() {
+			warn("project config", w)
+		}
+		cs, _ := a.Store.ListContainers(ctx, p.ID)
+		info("containers", fmt.Sprintf("%d container(s)", len(cs)))
+
+		// Verify the adapters' credentials are actually present, since
+		// a missing key fails deep inside a container otherwise.
+		if ad, ok := agent.DefaultRegistry().Get(cfg.Sandbox.Agent); ok {
+			names := ad.AuthEnv()
+			if len(names) > 0 && !anyEnvSet(names) {
+				warn("agent credentials", fmt.Sprintf("none of %v is set; the %s agent will not authenticate",
+					names, cfg.Sandbox.Agent))
+			}
+		}
+		return nil
+	}); err != nil {
+		warn("daemon state", fmt.Sprintf("could not open ~/.aurium: %v", err))
+	}
+	return out
 }
 
 func anyEnvSet(names []string) bool {
