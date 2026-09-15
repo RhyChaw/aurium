@@ -58,15 +58,15 @@ export function renderSetup(host) {
     el("section.step", {},
       el("h3", {}, "2 · Connect a provider"),
       el("p", {}, "Agents run on your accounts."),
-      el("button", { onclick: () => selectPanel("providers") }, "Open Providers")),
+      el("button.act", { onclick: () => selectPanel("providers") }, "Open Providers")),
 
     el("section.step", {},
       el("h3", {}, "3 · Connect GitHub"),
-      el("button", { onclick: () => selectPanel("providers") }, "Open Providers")),
+      el("button.act", { onclick: () => selectPanel("providers") }, "Open Providers")),
 
     el("section.step", {},
       el("h3", {}, "4 · Your first project"),
-      el("button", { onclick: () => selectPanel("home") }, "Create a project")),
+      el("button.act.primary", { onclick: () => selectPanel("home") }, "Create a project")),
 
     // A wizard you cannot leave is a trap, not a wizard. The dismissal is the
     // one piece of state selectPanel does not carry, so it is set first.
