@@ -1,0 +1,341 @@
+/* Aurium dashboard v2: palette, sidebar shell, terminal drawer.
+ *
+ * Sits ON TOP of the existing internal/api/web/style.css. Load it second and
+ * it overrides only what changed. Nothing here invents a class the markup
+ * does not already have, except the two new components at the bottom
+ * (.shell/.sidebar and .term), which are additive.
+ *
+ * What changed and why:
+ *   - The ground went deeper (#16151a -> #07060A) so gold reads as a light
+ *     source rather than a beige accent.
+ *   - --muted stayed at the old value. Deepening the ground without keeping
+ *     muted legible is how a dark theme becomes unreadable; 6:1 is the floor.
+ *   - Gold became a five stop ramp instead of one hex, so it can be poured
+ *     down an edge or a number instead of only filling a box.
+ *   - The four agent bands are UNCHANGED. internal/api/projects.go computes
+ *     them and the CLI agrees with this page about what red means.
+ */
+
+:root[data-theme="dark"], :root:not([data-theme="light"]) {
+  --bg: #07060A;
+  --surface: #0D0C12;
+  --surface-2: #0A090E;
+  --border: #201E28;
+  --border-strong: #37333F;
+  --text: #F2EFEA;
+  --muted: #9B95A5;          /* 6:1 on --bg. Do not go dimmer for text. */
+  --muted-2: #8C8698;        /* 5.2:1. Timestamps, placeholders. Dimmest legible. */
+  --accent: #F5C35A;
+  --accent-ink: #C79A47;     /* gold as TEXT on dark, where the bright gold vibrates */
+  --accent-soft: rgba(245,195,90,.09);
+  --accent-line: #4A3510;
+  --on-accent: #2A1C05;
+  --ok: #6CC79A;
+  --warn: #D9AC54;
+  --danger: #E0866F;
+
+  --state-starting: var(--warn);
+  --state-working: #7AA6DD;
+  --state-done: var(--ok);
+  --state-attention: var(--danger);
+
+  --lane-agent: #7AA6DD;
+  --lane-container: #C9A678;
+  --lane-context: #86C08A;
+  --lane-gateway: #D9AC54;
+  --lane-approval: #E0866F;
+
+  /* The molten ramp. Vertical, and taller than its box, so
+     background-position can be animated to make it flow. */
+  --gold: linear-gradient(180deg,#FFF6DC 0%,#FFE9A8 16%,#F5C35A 42%,#C68F2C 70%,#4A3210 100%);
+  --gold-flat: linear-gradient(180deg,#FFE9A8,#D8A038);
+}
+
+:root[data-theme="light"] {
+  --bg: #F7F4EE;
+  --surface: #FFFFFF;
+  --surface-2: #F4F0E9;
+  --border: #E4E0D8;
+  --border-strong: #CFC7B6;
+  --text: #16140F;
+  --muted: #5C574D;
+  --muted-2: #6B6660;
+  --accent: #C68F2C;
+  --accent-ink: #7A5510;     /* 5.6:1 on paper. The bright gold is unreadable here. */
+  --accent-soft: #FBF4E4;
+  --accent-line: #DFC79A;
+  --on-accent: #2A1C05;
+  --ok: #2F6F4F;
+  --warn: #8A6212;
+  --danger: #97341F;
+
+  --state-starting: var(--warn);
+  --state-working: #3B6EA5;
+  --state-done: var(--ok);
+  --state-attention: var(--danger);
+
+  --lane-agent: #3B6EA5;
+  --lane-container: #7A5C3E;
+  --lane-context: #5F7F5A;
+  --lane-gateway: #8A6212;
+  --lane-approval: #97341F;
+
+  --gold: linear-gradient(180deg,#FFF6DC 0%,#FFE9A8 16%,#F5C35A 42%,#C68F2C 72%,#8A6212 100%);
+  --gold-flat: linear-gradient(180deg,#F5C35A,#C68F2C);
+}
+
+:root {
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --display: "Instrument Serif", Georgia, serif;
+  --radius: 8px;
+}
+
+@keyframes au-melt  { 0% { background-position: 50% 0%; }   100% { background-position: 50% 200%; } }
+@keyframes au-shim  { 0% { background-position: 0% 0; }     100% { background-position: 200% 0; } }
+@keyframes au-caret { 0%,49% { opacity: 1; }                50%,100% { opacity: 0; } }
+
+/* ------------------------------------------------------------- wordmark */
+
+.wordmark {
+  display: inline-flex; align-items: center; gap: 11px;
+  font: 400 20px/1 var(--display);
+  letter-spacing: .005em;
+}
+.wordmark img { width: 30px; height: 24px; image-rendering: pixelated; }
+:root:not([data-theme="light"]) .wordmark span {
+  background: var(--gold-flat);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+:root[data-theme="light"] .wordmark span { color: var(--accent-ink); }
+
+/* -------------------------------------------------- shell and sidebar */
+
+/* The panel switcher moved out of the top bar. It was six tabs competing
+   with the project name and the connection state for one 42px strip; as a
+   rail it gets room for a count per panel, and the top bar gets to carry
+   fleet state instead of navigation. */
+
+.shell { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 214px minmax(0,1fr); }
+@media (max-width: 900px) { .shell { grid-template-columns: minmax(0,1fr); } }
+
+.sidebar {
+  background: var(--surface-2);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  min-height: 0;
+}
+.sidebar > .wordmark { padding: 17px 16px 16px; }
+
+.side-nav { padding: 0 10px; display: flex; flex-direction: column; gap: 2px; }
+.side-item {
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  background: none; border: 1px solid transparent; border-radius: 8px;
+  padding: 10px 12px; cursor: pointer;
+  color: var(--text); font: 500 12.5px/1 var(--sans);
+  text-align: left;
+}
+.side-item:hover { background: var(--surface); }
+.side-item.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
+  font-weight: 600;
+}
+:root[data-theme="light"] .side-item.is-active { background: var(--surface); color: var(--text); }
+.side-item.is-active::before {
+  content: ""; position: absolute; left: 0; top: 6px; bottom: 6px;
+  width: 2px; border-radius: 2px; background: var(--gold-flat);
+}
+.side-meta { margin-left: auto; font: 400 10.5px/1 var(--mono); color: var(--muted); }
+.side-dot { margin-left: auto; width: 6px; height: 6px; border-radius: 50%; }
+
+.side-group { margin-top: 24px; padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
+.side-group h2 {
+  margin: 0; font: 600 9.5px/1 var(--mono);
+  letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+}
+.side-project {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 0; background: none; border: none; cursor: pointer;
+  color: var(--text); font: 500 11.5px/1 var(--sans); text-align: left; width: 100%;
+}
+.side-project.is-open { font-weight: 600; }
+.side-foot {
+  margin-top: auto; border-top: 1px solid var(--border);
+  padding: 13px 16px; display: flex; flex-direction: column; gap: 9px;
+  font: 500 10.5px/1 var(--mono);
+}
+
+/* ------------------------------------------------------------- top bar */
+
+header {
+  position: relative;
+  display: flex; align-items: center; gap: 13px;
+  padding: 0 20px; height: 54px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+header h1 { margin: 0; font: 600 14px/1 var(--sans); }
+header .meta { font: 400 10.5px/1 var(--mono); color: var(--muted); }
+header .pill-live, header .pill-attn, header .pill-rate {
+  display: inline-flex; align-items: center; gap: 7px;
+  font: 500 11px/1 var(--mono);
+  border-radius: 999px; padding: 6px 11px;
+}
+header .pill-attn { margin-left: auto; color: var(--danger); border: 1px solid var(--danger); }
+header .pill-live { color: var(--ok); border: 1px solid var(--ok); }
+header .pill-rate { color: var(--accent-ink); border: 1px solid var(--accent-line); }
+header .pill-live::before, header .pill-attn::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+
+/* The one hairline that moves. It marks the boundary the live data crosses. */
+header::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-line) 18%, var(--accent) 50%, var(--accent-line) 82%, transparent);
+  background-size: 200% 100%;
+  animation: au-shim 9s linear infinite;
+}
+
+/* ---------------------------------------------------------- workspace */
+
+.workspace { grid-template-columns: 292px minmax(0,1fr) 372px; }
+
+/* These restate style.css's own breakpoints. The base rule above comes later
+   in the cascade at equal specificity, so without them it would win inside
+   the media queries too and the three panes would stay at desktop widths all
+   the way down. */
+@media (max-width: 1180px) {
+  .workspace { grid-template-columns: 250px minmax(0,1fr) 320px; }
+}
+@media (max-width: 900px) {
+  .workspace { grid-template-columns: minmax(0,1fr); }
+}
+
+/* A tile's left edge is the state. On the open agent it is molten, because
+   "the one I am looking at" and "the one that is running" are the two things
+   worth spending gold on. */
+.tile.is-selected {
+  border-color: var(--accent-line);
+  background: linear-gradient(90deg, var(--accent-soft), transparent);
+}
+.tile.is-selected .tile-name { color: #FFE9A8; }
+:root[data-theme="light"] .tile.is-selected .tile-name { color: var(--accent-ink); }
+.tile.is-selected .tile-bar {
+  background: var(--gold);
+  background-size: 100% 260%;
+  animation: au-melt 3.6s ease-in-out infinite alternate;
+}
+.tile-role, .tile-sub, .tile-when { color: var(--muted); }
+.tile-branch { color: var(--muted); }
+
+.project-head { border-radius: 7px; }
+.project-head .term-open {
+  font: 600 10px/1 var(--mono);
+  color: var(--muted-2);
+  background: none; border: 1px solid var(--border-strong); border-radius: 4px;
+  padding: 2px 5px; cursor: pointer;
+}
+.project-head.is-open .term-open { color: var(--accent-ink); border-color: var(--accent-line); }
+
+/* Numbers that are money get the ramp. Nothing else does. */
+.stat-value.is-gold, .total-value.is-gold {
+  background: var(--gold-flat);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+:root[data-theme="light"] .stat-value.is-gold,
+:root[data-theme="light"] .total-value.is-gold {
+  background: none; color: var(--accent-ink);
+}
+.stat { border-left-width: 2px; }
+.stat-label, .stat-sub, .figure-label, .total-label { color: var(--muted); }
+.stat-label, .figure-label, .total-label { font-size: 9.5px; }
+
+.pulse-frame { height: auto; flex: 1 1 auto; min-height: 200px; }
+
+/* ----------------------------------------------------- terminal drawer */
+
+/* The container's stdout, per agent, under the pulse. It answers the
+   question the transcript cannot: not what the agent said, but what the
+   process printed. Tabs are agents, because a container is an agent here. */
+
+.term {
+  border-top: 1px solid var(--border);
+  background: #08070C;
+  display: flex; flex-direction: column;
+  height: 248px;
+  flex: 0 0 auto;
+}
+.term[hidden] { display: none; }
+.term-head {
+  display: flex; align-items: center; gap: 9px;
+  height: 36px; padding: 0 14px;
+  background: #0B0A10; border-bottom: 1px solid #1A1822;
+  overflow-x: auto;
+}
+.term-title {
+  font: 600 9.5px/1 var(--mono);
+  letter-spacing: .14em; text-transform: uppercase; color: #C79A47;
+  white-space: nowrap;
+}
+.term-tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: none; border: none; cursor: pointer;
+  font: 400 11px/1 var(--mono); color: #9B95A5;
+  padding: 0 10px; white-space: nowrap;
+}
+.term-tab::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.term-tab[data-state="attention"] { color: var(--danger); }
+.term-tab[data-state="working"] { color: var(--lane-context); }
+.term-tab.is-active {
+  color: #FFE9A8;
+  border-bottom: 1px solid #C68F2C;
+  padding-bottom: 3px;
+}
+.term-actions { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+.term-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  padding: 11px 15px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.term-line { display: flex; gap: 11px; font: 400 11.5px/1.65 var(--mono); min-width: 0; }
+.term-ts { color: #8C8698; flex: 0 0 auto; }
+.term-who { flex: 0 0 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.term-text { color: #C8C3D1; overflow-wrap: anywhere; }
+.term-line.is-err .term-text { color: var(--danger); }
+.term-prompt {
+  display: flex; gap: 9px; align-items: center;
+  font: 400 11.5px/1.65 var(--mono); margin-top: 4px;
+}
+.term-prompt .host { color: #C79A47; }
+.term-prompt .branch { color: #8C8698; }
+.term-prompt .sig { color: var(--accent); }
+.term-caret {
+  width: 7px; height: 14px; background: var(--accent);
+  animation: au-caret 1.1s step-end infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .term-caret, header::after, .tile.is-selected .tile-bar { animation: none; }
+}
+
+/* --------------------------------------------------------- primitives */
+
+button.act.primary {
+  background: var(--gold-flat);
+  color: var(--on-accent);
+  border-color: transparent;
+  font-weight: 600;
+}
+button.act.primary:hover:not([disabled]) { filter: brightness(1.06); }
+.msg.from-human { background: var(--accent-soft); border-color: var(--accent-line); }
+.cap, .ref { color: var(--accent-ink); }
+.hint-bar, .expiry, .card-sub, .msg-head, .chat-meta { color: var(--muted); }
+kbd { color: var(--muted); border-color: var(--border-strong); }
+
+/* A branch with no pull request is the ordinary case and must not be
+   decorated with an absence. (views/rail.js already returns null; this
+   guards against a placeholder creeping back in.) */
+.pr:empty { display: none; }

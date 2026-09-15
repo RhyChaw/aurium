@@ -3,9 +3,24 @@
 **Date:** 2026-09-15
 **Status:** accepted, not yet implemented. The one assumption it rests on was
 verified by spike before writing (see *Evidence*).
-**Extends:** `internal/runtime/driver` (a third driver beside `docker` and
-`local`), `internal/agent` (`HeadlessCommand`, already present and unused for
-this), and `internal/gateway` (one new tool). Changes no schema.
+**Extends:** `internal/runtime` (agent placement), `internal/agent`
+(`HeadlessCommand`, already present), and `internal/gateway` (one new tool).
+Changes no schema and adds no driver.
+
+**Amended 2026-09-15, before implementation.** An earlier draft of this spec
+called for "a third driver beside `docker` and `local`". That was wrong, and
+writing the plan is what caught it. `Driver` is twenty-odd methods of container
+lifecycle — create, snapshot, volumes, networks — and this design changes none
+of them: the container stays Docker, because running commands in a reproducible
+environment is exactly what it is for. A new driver would have meant
+reimplementing all of it to change one thing.
+
+The real seam is one call. A headless turn runs in the container solely because
+`converse.go` does `drv.Exec(runCtx, c.RuntimeID, cmd, runOpts)`, and an
+interactive one because `manager.go` builds an `agent.Session` around the
+driver. **Where the agent process runs is an axis orthogonal to which driver
+owns the container**, and naming it that way makes the change small: placement
+is a setting, not a subsystem.
 
 ## The problem
 
@@ -43,7 +58,11 @@ property a host-side agent needs, which is why this design costs so little.
 
 ## Shape
 
-| | today | host driver |
+Placement has two values. `in-container` is today's behaviour and stays the
+default. `host` runs the agent process on the machine, with its commands routed
+back into the container it already has.
+
+| | today (`in-container`) | `host` placement |
 |---|---|---|
 | Worktree | host, bind-mounted | unchanged |
 | Agent process | `claude` in container tmux | `claude -p` on the host, ~450 MB |
@@ -122,16 +141,19 @@ your own repository on your own laptop that is a reasonable trade, and it is
 strictly more visibility than today, where `Bash` inside a container was
 invisible to Aurium as well. It must never be described as a sandbox.
 
-**A second driver is a second thing to keep correct.** The mitigation is that
-`Caps` already exists and is already used honestly by `local`; the host driver
-declares what it can do and the rest of the system reads that rather than
-assuming.
+**A second placement is a second path to keep correct**, and the two must not
+drift on anything a user can observe — token counts, transcript rows, error
+text. The mitigation is that both paths produce the same `ExecResult`-shaped
+outcome and are tested against the same assertions, so a divergence fails a
+test rather than surprising someone.
 
 ## Interfaces
 
-- `internal/runtime/driver/host.go` implementing the existing `Driver`
-  interface, reporting `Snapshot: false` unless the transcript question is
-  solved first, and `Tmux: false`.
+- No new driver. `sandbox.agent_placement` in `aurium.yaml`, one of
+  `in-container` (default) or `host`.
+- `converse.go` chooses between `drv.Exec` and a host process for the turn.
+  `manager.go` starts no tmux session under `host` placement, which the
+  existing `Caps.Tmux` gate already expresses for a different reason.
 - One gateway tool, `aurium_exec`, which runs a command in the agent's container
   and returns combined output with an exit status. It is subject to the existing
   risk classification, so a destructive verb in a command is held for approval
