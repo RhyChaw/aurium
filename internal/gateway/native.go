@@ -434,6 +434,13 @@ func (g *Gateway) callNative(ctx context.Context, caller Caller, name string, ra
 		return mcp.JSONResult(res), nil
 
 	case "aurium_exec":
+		// The most powerful tool here — arbitrary shell in the caller's
+		// container — and so the one that must be scoped most explicitly.
+		// Every neighbouring tool gates on a scope; without this one a token
+		// minted with nothing but context:read would carry code execution.
+		if !caller.Token.Has(store.ScopeExecSelf) && !caller.Human {
+			return deniedScope(store.ScopeExecSelf)
+		}
 		if g.Executor == nil {
 			return mcp.ErrorResult("aurium_exec is not available in this configuration"), nil
 		}

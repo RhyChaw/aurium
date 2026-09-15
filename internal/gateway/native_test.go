@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/RhyChaw/aurium/internal/events"
+	"github.com/RhyChaw/aurium/internal/store"
 )
 
 // fakeExecutor stands in for the runtime's container exec, the same way
@@ -123,5 +124,53 @@ func TestAuriumExecRecordsAFailedCommandToo(t *testing.T) {
 	}
 	if evs[0].Payload["status"] != "error" {
 		t.Errorf("failed command should be recorded with status error, got %+v", evs[0].Payload)
+	}
+}
+
+// Every other tool here gates on a scope: aurium_context_* on context:read,
+// aurium_ipc_send on ipc:send, aurium_snapshot on snapshot:self. aurium_exec
+// is the most powerful of them — arbitrary shell in the caller's container,
+// and under host placement the ONLY place the agent's commands run — so a
+// token minted with nothing but context:read must not carry it.
+func TestAuriumExecRequiresItsOwnScope(t *testing.T) {
+	f := newGateway(t)
+	exec := &fakeExecutor{}
+	f.g.Executor = exec
+
+	caller := f.caller(f.aMaster, f.cA)
+	caller.Token = store.TokenInfo{
+		ContainerID: f.cA.ID, Scopes: []string{store.ScopeContextRead},
+	}
+
+	res, rpcErr := f.g.CallTool(context.Background(), caller, "aurium_exec",
+		json.RawMessage(`{"command":"rm -rf /"}`))
+	if rpcErr != nil {
+		t.Fatal(rpcErr)
+	}
+	if !res.IsError {
+		t.Fatal("a token without the exec scope must not get code execution")
+	}
+	if exec.got != "" {
+		t.Errorf("the command must not have run at all, got %q", exec.got)
+	}
+	if !strings.Contains(res.Content[0].Text, store.ScopeExecSelf) {
+		t.Errorf("the refusal must name the missing scope: %v", res.Content[0].Text)
+	}
+}
+
+// And the scope an ordinary container agent is issued must actually carry it,
+// or host placement — whose every command goes through this tool — could
+// never run one.
+func TestDefaultContainerScopesCarryTheExecScope(t *testing.T) {
+	f := newGateway(t)
+	f.g.Executor = &fakeExecutor{}
+
+	res, rpcErr := f.g.CallTool(context.Background(), f.caller(f.aMaster, f.cA), "aurium_exec",
+		json.RawMessage(`{"command":"go test ./..."}`))
+	if rpcErr != nil {
+		t.Fatal(rpcErr)
+	}
+	if res.IsError {
+		t.Fatalf("an ordinary container agent must be able to call aurium_exec: %+v", res)
 	}
 }
