@@ -735,6 +735,50 @@ button.act.danger-act { background: var(--danger); color: var(--on-accent); bord
 .g-bar .bar { display: block; height: 6px; border-radius: 3px; background: var(--accent); min-width: 2px; }
 .g-tokens, .g-cost { text-align: right; font-family: var(--mono); font-size: 11px; white-space: nowrap; }
 
+/* ------------------------------------------------------------------- setup */
+
+.setup { max-width: 720px; }
+.setup h2 { margin: 0 0 4px; font-size: 1.15rem; }
+
+.step {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); padding: 13px 15px; margin-bottom: 12px;
+  display: grid; gap: 8px; align-content: start;
+}
+.step h3 { margin: 0; font-size: 13px; }
+
+/* Reuses the global .notice look (the accent-soft callout) but rounded on all
+   sides, since here it sits inside a card rather than under the tab bar. */
+.step .notice { border-radius: var(--radius); }
+.step .notice.is-ok { color: var(--ok); }
+
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+/* li.check outranks the plain .check rule used for the events "Follow"
+   checkbox label (a <label>, not an <li>) on specificity alone, so the two
+   never fight over source order. */
+li.check {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  border: 1px solid var(--border); border-left: 3px solid var(--border-strong);
+  border-radius: 6px; background: var(--surface-2);
+  padding: 6px 10px; font-size: 12.5px; color: var(--text);
+}
+li.check.is-ok { border-left-color: var(--ok); }
+li.check.is-warn { border-left-color: var(--warn); }
+li.check.is-fail { border-left-color: var(--danger); }
+.check-name { font: 600 12px var(--sans); }
+.check-detail { color: var(--muted); }
+.check-fix {
+  flex: 1 1 100%;
+  display: block;
+  font-family: var(--mono); font-size: 11.5px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 5px; padding: 4px 8px; color: var(--text);
+  /* The whole point of showing the remedy is that it can be selected and
+     copied without fighting the browser over what counts as one click. */
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
 /* ------------------------------------------------------- approvals, events */
 
 .cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-width: 760px; }
