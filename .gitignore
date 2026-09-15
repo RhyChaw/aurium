@@ -3,3 +3,8 @@
 *.test
 .DS_Store
 coverage.out
+
+# This repository dogfoods Aurium, so `aurium init` writes one here. It is
+# machine-specific (its base_branch is whatever branch you happened to be on),
+# so it belongs in the working tree and not in the history.
+/aurium.yaml
