@@ -2,6 +2,7 @@ package preflight
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,5 +47,77 @@ func TestBinaryWorksReportsMissing(t *testing.T) {
 	err := BinaryWorks(context.Background(), "definitely-not-here")
 	if err == nil || !strings.Contains(err.Error(), "not installed") {
 		t.Errorf(`missing binary must say "not installed", got: %v`, err)
+	}
+}
+
+func TestBinaryWorksSilentFailure(t *testing.T) {
+	writeFakeBin(t, "silentfail", `exit 42`)
+	err := BinaryWorks(context.Background(), "silentfail")
+	if err == nil {
+		t.Fatal("a binary that exits non-zero must report an error")
+	}
+	if !strings.Contains(err.Error(), "silentfail") {
+		t.Errorf("error must mention the binary path, got: %v", err)
+	}
+}
+
+func TestRun(t *testing.T) {
+	checks := []Check{
+		{
+			Name:     "passing",
+			Severity: Required,
+			Probe: func(ctx context.Context) error {
+				return nil
+			},
+			Remedy: Remedy{
+				Kind:    NoRemedy,
+				Command: "",
+			},
+		},
+		{
+			Name:     "failing",
+			Severity: Required,
+			Probe: func(ctx context.Context) error {
+				return errors.New("something went wrong")
+			},
+			Remedy: Remedy{
+				Kind:    Manual,
+				Command: "run this command",
+			},
+		},
+	}
+
+	results := Run(context.Background(), checks)
+
+	if len(results) != 2 {
+		t.Fatalf("Run should return 2 results, got %d", len(results))
+	}
+
+	// Check passing result
+	if !results[0].OK {
+		t.Errorf("passing check should have OK=true")
+	}
+	if results[0].Error != "" {
+		t.Errorf("passing check should have empty Error, got: %q", results[0].Error)
+	}
+	if results[0].Remedy != "" {
+		t.Errorf("passing check should have empty Remedy, got: %q", results[0].Remedy)
+	}
+	if results[0].RemedyKind != "" {
+		t.Errorf("passing check should have empty RemedyKind, got: %q", results[0].RemedyKind)
+	}
+
+	// Check failing result
+	if results[1].OK {
+		t.Errorf("failing check should have OK=false")
+	}
+	if results[1].Error != "something went wrong" {
+		t.Errorf("failing check should have Error='something went wrong', got: %q", results[1].Error)
+	}
+	if results[1].Remedy != "run this command" {
+		t.Errorf("failing check should have Remedy='run this command', got: %q", results[1].Remedy)
+	}
+	if results[1].RemedyKind != string(Manual) {
+		t.Errorf("failing check should have RemedyKind='manual', got: %q", results[1].RemedyKind)
 	}
 }

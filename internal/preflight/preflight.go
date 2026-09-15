@@ -32,9 +32,9 @@ const (
 
 type Remedy struct {
 	Kind    RemedyKind
-	Command string                            // exact copy-paste command, Manual only
-	Note    string                            // why it can't be automated
-	Fix     func(context.Context) error       // non-nil only when Kind == Auto
+	Command string                      // exact copy-paste command, Manual only
+	Note    string                      // why it can't be automated
+	Fix     func(context.Context) error // non-nil only when Kind == Auto
 }
 
 type Check struct {
