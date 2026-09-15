@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,34 @@ import (
 	"github.com/RhyChaw/aurium/internal/runtime/driver"
 	"github.com/RhyChaw/aurium/internal/store"
 )
+
+// mcpServerEntry decodes the one "aurium" server entry out of a written
+// mcp.json, so assertions check what a real MCP client would parse rather
+// than a hand-typed substring of it — a round-1 fix once wrote the bare
+// daemon base URL with no /mcp path, and a substring test asserting the same
+// constant the code produced passed anyway.
+func mcpServerEntry(t *testing.T, raw string) struct {
+	Type    string            `json:"type"`
+	URL     string            `json:"url"`
+	Headers map[string]string `json:"headers"`
+} {
+	t.Helper()
+	var doc struct {
+		MCPServers map[string]struct {
+			Type    string            `json:"type"`
+			URL     string            `json:"url"`
+			Headers map[string]string `json:"headers"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("host mcp config is not valid JSON: %v\n%s", err, raw)
+	}
+	server, ok := doc.MCPServers["aurium"]
+	if !ok {
+		t.Fatalf("host mcp config has no \"aurium\" server:\n%s", raw)
+	}
+	return server
+}
 
 // tmuxCapableDriver wraps the local driver but claims tmux support, so a test
 // can tell whether Create actually tried to start a session without needing a
@@ -95,13 +124,23 @@ func TestCreateWithHostPlacementWritesTheHostMCPConfig(t *testing.T) {
 		t.Fatalf("host mcp config not written at the path HeadlessCommand will read: %v", err)
 	}
 	got := string(b)
-	for _, want := range []string{`"aurium"`, `"type": "http"`, `"url": "http://127.0.0.1:7770"`} {
-		if !strings.Contains(got, want) {
-			t.Errorf("host mcp config missing %q; got:\n%s", want, got)
-		}
-	}
 	if strings.Contains(got, `"command"`) {
 		t.Errorf("a host-sandboxed turn must spawn no binary; got:\n%s", got)
+	}
+
+	server := mcpServerEntry(t, got)
+	if server.Type != "http" {
+		t.Errorf("host mcp config must use HTTP transport; got %+v", server)
+	}
+	// The daemon serves MCP only at POST /mcp (internal/api/server.go); a
+	// bare base URL 404s/405s. HasSuffix, not equality against a literal
+	// this test would also have to keep in sync with HostAuriumURL by hand.
+	if !strings.HasSuffix(server.URL, "/mcp") {
+		t.Errorf("host mcp config's url must end in /mcp; got %q", server.URL)
+	}
+	if !strings.HasPrefix(server.URL, f.mgr.HostAuriumURL) {
+		t.Errorf("host mcp config's url must be built from Manager.HostAuriumURL (%q); got %q",
+			f.mgr.HostAuriumURL, server.URL)
 	}
 }
 
@@ -182,10 +221,11 @@ func TestRecreateWithHostPlacementWritesTheHostMCPConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("recreate must write the new agent's host mcp config at its own id: %v", err)
 	}
-	got := string(b)
-	for _, want := range []string{`"aurium"`, `"type": "http"`, `"url": "http://127.0.0.1:7770"`} {
-		if !strings.Contains(got, want) {
-			t.Errorf("recreated host mcp config missing %q; got:\n%s", want, got)
-		}
+	server := mcpServerEntry(t, string(b))
+	if server.Type != "http" {
+		t.Errorf("recreated host mcp config must use HTTP transport; got %+v", server)
+	}
+	if !strings.HasSuffix(server.URL, "/mcp") {
+		t.Errorf("recreated host mcp config's url must end in /mcp; got %q", server.URL)
 	}
 }

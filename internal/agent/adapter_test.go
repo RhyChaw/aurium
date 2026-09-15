@@ -234,6 +234,22 @@ func TestMCPConfigPathIsUnderAgentsAgentID(t *testing.T) {
 	}
 }
 
+// The daemon serves MCP only at POST /mcp (internal/api/server.go); a bare
+// base URL 404s/405s and a host-sandboxed turn gets no tools with no error
+// naming why. cmd/aurium-mcp/main.go's forward already appends this same
+// path to reach the daemon from inside a container; MCPEndpoint is the same
+// computation for a client outside one.
+func TestMCPEndpointAppendsThePathTheDaemonServesMCPOn(t *testing.T) {
+	for _, tc := range []struct{ base, want string }{
+		{"http://127.0.0.1:7770", "http://127.0.0.1:7770/mcp"},
+		{"http://127.0.0.1:7770/", "http://127.0.0.1:7770/mcp"},
+	} {
+		if got := MCPEndpoint(tc.base); got != tc.want {
+			t.Errorf("MCPEndpoint(%q) = %q, want %q", tc.base, got, tc.want)
+		}
+	}
+}
+
 func readFile(t *testing.T, p string) string {
 	t.Helper()
 	return string(mustRead(t, p))

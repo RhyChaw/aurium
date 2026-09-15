@@ -53,8 +53,9 @@ type Projection struct {
 	// in; only when this is true does Prepare also write the host-side MCP
 	// config named by AgentID and AuriumHome, below. A host process has no
 	// /run/aurium/token to read Token from instead, so here Prepare writes
-	// it into that config's env — the one place this design puts the bearer
-	// token on disk, and only on the host's own machine.
+	// it into that config's HTTP headers (Authorization: Bearer ...) — the
+	// one place this design puts the bearer token on disk, and only on the
+	// host's own machine.
 	HostSandboxed bool
 	// AgentID and AuriumHome combine, through MCPConfigPath, to say where a
 	// host-sandboxed turn's MCP config belongs — the same computation the
@@ -62,10 +63,12 @@ type Projection struct {
 	// Only read when HostSandboxed.
 	AgentID    string
 	AuriumHome string
-	// HostAuriumURL is the daemon's MCP endpoint as reached from the host
-	// itself. AuriumURL's host.docker.internal resolves only inside a
-	// container, so a host-sandboxed turn needs its own address for the same
-	// daemon. Only read when HostSandboxed.
+	// HostAuriumURL is the daemon's BASE address as reached from the host
+	// itself — no /mcp suffix, the same convention cmd/aurium-mcp/main.go's
+	// cfg.URL follows. AuriumURL's host.docker.internal resolves only
+	// inside a container, so a host-sandboxed turn needs its own base
+	// address for the same daemon; MCPEndpoint appends the actual route
+	// when the client-facing config is built. Only read when HostSandboxed.
 	HostAuriumURL string
 }
 
@@ -253,6 +256,21 @@ func mcpServerJSON(command, auriumURL string) string {
 `, command, auriumURL)
 }
 
+// MCPEndpoint turns a daemon base URL into the one route it actually serves
+// MCP on: POST /mcp (internal/api/server.go registers nothing at "/" but a
+// GET). cmd/aurium-mcp/main.go's forward already does exactly this
+// (strings.TrimRight(cfg.URL, "/")+"/mcp"); this mirrors it so the two
+// clients of the daemon's base URL cannot compute two different endpoints.
+// Exported so a test can check it against the route the daemon actually
+// registers, not just against itself.
+//
+// A base URL (HostAuriumURL, AuriumURL, cmd/aurium-mcp's cfg.URL) stays a
+// base — other readers may depend on that — so the path is appended only
+// here, where a client-facing config is built.
+func MCPEndpoint(base string) string {
+	return strings.TrimRight(base, "/") + "/mcp"
+}
+
 // hostMCPServerJSON is mcpServerJSON's counterpart for a turn that runs on the
 // host rather than in a container. It spawns no binary at all: the
 // aurium-mcp shim exists only to bridge stdio to HTTP from inside a
@@ -264,7 +282,7 @@ func mcpServerJSON(command, auriumURL string) string {
 // Bearer <token>"` and reading the .mcp.json it wrote (see the task-6
 // report): {"mcpServers": {"aurium": {"type": "http", "url": ..., "headers":
 // {"Authorization": "Bearer ..."}}}}.
-func hostMCPServerJSON(auriumURL, token string) string {
+func hostMCPServerJSON(auriumBaseURL, token string) string {
 	return fmt.Sprintf(`{
   "mcpServers": {
     "aurium": {
@@ -276,7 +294,7 @@ func hostMCPServerJSON(auriumURL, token string) string {
     }
   }
 }
-`, auriumURL, "Bearer "+token)
+`, MCPEndpoint(auriumBaseURL), "Bearer "+token)
 }
 
 // writeHostMCPConfig writes the file agent.MCPConfigPath names — the ONE

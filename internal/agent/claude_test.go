@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,19 +62,56 @@ func TestPrepareWritesTheHostMCPConfigAtMCPConfigPath(t *testing.T) {
 
 	want := MCPConfigPath(auriumHome, "ag_123")
 	cfg := readFile(t, want)
-	// Shape confirmed against `claude mcp add --transport http --scope
-	// project` (see the task-6 report): HTTP transport, no command to spawn.
-	for _, sub := range []string{
-		`"mcpServers"`, `"aurium"`, `"type": "http"`,
-		`"url": "http://127.0.0.1:7770"`, `"Authorization": "Bearer tok_secret"`,
-	} {
-		if !strings.Contains(cfg, sub) {
-			t.Errorf("host mcp config missing %q; got:\n%s", sub, cfg)
-		}
-	}
 	if strings.Contains(cfg, `"command"`) {
 		t.Errorf("a host-sandboxed turn must spawn no binary at all; got:\n%s", cfg)
 	}
+
+	// Decoded rather than substring-matched: a round-1 fix once wrote the
+	// bare base URL with no /mcp path, and a test asserting
+	// `"url": "http://127.0.0.1:7770"` (the same constant the code produces)
+	// passed anyway, because it echoed the wrong value back at itself. The
+	// daemon serves MCP only at POST /mcp (internal/api/server.go); root
+	// answers GET alone. So this checks the actual served route, not a
+	// literal typed twice, and would have caught that.
+	server := decodeAuriumServer(t, cfg)
+	if server.Type != "http" {
+		t.Errorf("host mcp config must use HTTP transport; got %+v", server)
+	}
+	if !strings.HasSuffix(server.URL, "/mcp") {
+		t.Errorf("host mcp config's url must end in /mcp (the only route the daemon serves MCP on); got %q", server.URL)
+	}
+	if server.URL != MCPEndpoint("http://127.0.0.1:7770") {
+		t.Errorf("host mcp config's url must be MCPEndpoint(HostAuriumURL), got %q", server.URL)
+	}
+	if server.Headers["Authorization"] != "Bearer tok_secret" {
+		t.Errorf("host mcp config must carry the bearer token in its headers, got %+v", server.Headers)
+	}
+}
+
+// decodeAuriumServer reads the one "aurium" server entry out of a written
+// mcp.json, so assertions check what a real MCP client would parse rather
+// than a hand-typed substring of it.
+func decodeAuriumServer(t *testing.T, raw string) struct {
+	Type    string            `json:"type"`
+	URL     string            `json:"url"`
+	Headers map[string]string `json:"headers"`
+} {
+	t.Helper()
+	var doc struct {
+		MCPServers map[string]struct {
+			Type    string            `json:"type"`
+			URL     string            `json:"url"`
+			Headers map[string]string `json:"headers"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("host mcp config is not valid JSON: %v\n%s", err, raw)
+	}
+	server, ok := doc.MCPServers["aurium"]
+	if !ok {
+		t.Fatalf("host mcp config has no \"aurium\" server:\n%s", raw)
+	}
+	return server
 }
 
 // Only a host-sandboxed turn gets this file; an in-container turn's
