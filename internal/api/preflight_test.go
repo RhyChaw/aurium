@@ -6,6 +6,15 @@ import (
 	"testing"
 )
 
+func TestPreflightIsHostOnly(t *testing.T) {
+	h := newHarness(t)
+	res := h.do("GET", "/v1/preflight", h.cToken, "")
+	res.Body.Close()
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("preflight with a container token = %d, want 403", res.StatusCode)
+	}
+}
+
 func TestPreflightReturnsTheCheckTable(t *testing.T) {
 	h := newHarness(t)
 
