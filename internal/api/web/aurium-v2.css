@@ -254,7 +254,37 @@ header::after {
 .stat-label, .stat-sub, .figure-label, .total-label { color: var(--muted); }
 .stat-label, .figure-label, .total-label { font-size: 9.5px; }
 
-.pulse-frame { height: auto; flex: 1 1 auto; min-height: 200px; }
+/* A definite height, never `auto`. sizeCanvas() measures this box and sets the
+   canvas to match, so an auto height makes the box size to the canvas while the
+   canvas sizes to the box. Each pass added this box's 1px border twice, and
+   draw() runs every 100ms: the chart grew ~20px a second until it filled the
+   pane. Blip amplitude is derived from the height (laneH * 0.40), so spikes
+   visibly swelled as they scrolled right to left -- the symptom that found it.
+
+   The `flex` this replaces was inert from the day it was written: .pulse is a
+   grid, and flex properties do nothing to a grid item. */
+.pulse-frame { position: relative; height: clamp(180px, 30vh, 300px); }
+
+/* Out of flow, so the canvas contributes nothing to the height that sizes it.
+   The rule above is the fix; this is what stops a later edit re-creating the
+   loop by reaching for `auto` again. */
+.pulse-canvas { position: absolute; inset: 0; }
+
+/* The theme control. It cycles system -> light -> dark and always worked, but
+   it rendered as one muted grey word in the bottom corner of the sidebar and
+   read as a status line rather than a button -- so the light half of the design
+   was, in practice, unreachable. Given a border and a glyph, it is a control. */
+#theme {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  margin-left: 0; padding: 6px 9px;
+  border: 1px solid var(--border-strong); border-radius: 6px;
+  background: var(--surface-2); color: var(--text); cursor: pointer;
+  font: 500 10.5px/1 var(--mono);
+}
+#theme:hover { border-color: var(--accent-line, var(--accent)); color: var(--accent-ink, var(--accent)); }
+#theme::before { content: "\25D0"; font-size: 12px; line-height: 1; }
+#theme[data-mode="light"]::before { content: "\2600"; }
+#theme[data-mode="dark"]::before { content: "\263E"; }
 
 /* ----------------------------------------------------- terminal drawer */
 
@@ -352,3 +382,25 @@ kbd { color: var(--muted); border-color: var(--border-strong); }
 .step-head { display: flex; align-items: baseline; gap: 12px; }
 .step-head h3 { margin: 0; }
 .step-head .mini { margin-left: auto; }
+
+/* ------------------------------------------- sidebar: fixed, collapsible */
+
+/* The sidebar is chrome, so it holds still. Only the pane beside it scrolls.
+   Without the min-height:0 pair below, a long project list stretches the grid
+   row instead of scrolling inside it, and the whole shell grows a scrollbar --
+   which drags the sidebar up out of view along with the content. */
+.sidebar { height: 100%; overflow: hidden; }
+.side-group { min-height: 0; }
+#side-projects { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+.pane { min-height: 0; display: flex; flex-direction: column; }
+.pane > main { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+/* Collapsed by Cmd/Ctrl+B. The column goes to zero rather than the element to
+   `display: none`: a grid whose track still exists keeps the pane's width
+   animating from one number to another, and keeps the sidebar's own scroll
+   position while it is away. */
+:root.sidebar-hidden .shell { grid-template-columns: 0 minmax(0, 1fr); }
+:root.sidebar-hidden .sidebar { visibility: hidden; }
+.shell { transition: grid-template-columns 120ms ease; }
+@media (prefers-reduced-motion: reduce) { .shell { transition: none; } }

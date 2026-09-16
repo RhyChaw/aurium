@@ -32,6 +32,9 @@ function apply(mode) {
 function paint(button, mode) {
   if (!button) return;
   button.textContent = mode;
+  // CSS picks the glyph off this: the button's text is the mode word, and a
+  // stylesheet cannot select on text content.
+  button.dataset.mode = mode;
   button.setAttribute("aria-label", `Theme: ${mode}. Click to change.`);
 }
 

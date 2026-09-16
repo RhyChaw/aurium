@@ -55,13 +55,13 @@ func (c *Claude) Prepare(p Projection) error {
 	// Claude Code's @-import syntax: the agent re-reads the target whenever it
 	// changes, so the daemon regenerating CONTEXT.md is enough to update the
 	// agent's instructions without restarting it (§8.5).
-	if err := ensureImport(p.Home, ".claude/CLAUDE.md",
+	if err := ensureImport(p, ".claude/CLAUDE.md",
 		"@"+p.ContextPath, projectionHeader); err != nil {
 		return fmt.Errorf("agent/claude: write CLAUDE.md: %w", err)
 	}
 	// The token is deliberately absent here; it arrives as /run/aurium/token
 	// and $AURIUM_TOKEN so revoking it does not mean rewriting agent config.
-	if err := writeFileIn(p.Home, ".claude.json",
+	if err := writeFileIn(p, ".claude.json",
 		mcpServerJSON(p.MCPCommand, p.AuriumURL)); err != nil {
 		return fmt.Errorf("agent/claude: write .claude.json: %w", err)
 	}

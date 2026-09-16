@@ -25,7 +25,7 @@ func (c *Codex) Capabilities() Caps {
 }
 
 func (c *Codex) Prepare(p Projection) error {
-	if err := ensureImport(p.Home, ".codex/AGENTS.md",
+	if err := ensureImport(p, ".codex/AGENTS.md",
 		"See "+p.ContextPath+" for this container's live Aurium context.",
 		projectionHeader); err != nil {
 		return fmt.Errorf("agent/codex: write AGENTS.md: %w", err)
@@ -40,7 +40,7 @@ args = []
 AURIUM_URL = %q
 `, p.MCPCommand, p.AuriumURL)
 
-	if err := writeFileIn(p.Home, ".codex/config.toml", toml); err != nil {
+	if err := writeFileIn(p, ".codex/config.toml", toml); err != nil {
 		return fmt.Errorf("agent/codex: write config.toml: %w", err)
 	}
 	return nil
