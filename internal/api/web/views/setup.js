@@ -42,14 +42,17 @@ export function renderSetup(host) {
     el("p.lede", {}, "Four steps. The first one is your machine."),
 
     el("section.step", {},
-      el("h3", {}, "1 · Environment"),
+      el("div.step-head", {},
+        el("h3", {}, "1 · Environment"),
+        el("button.mini.ghost", { onclick: reloadPreflight }, "Re-check")),
       state.preflightError
         ? el("p.notice", {}, `Could not check this machine: ${state.preflightError}`)
         : blocking.length
-          ? el("p.notice", {}, `${blocking.length} thing(s) need fixing before agents can run.`)
+          ? el("p.notice", {}, blocking.length === 1
+              ? "One thing needs fixing before agents can run."
+              : `${blocking.length} things need fixing before agents can run.`)
           : el("p.notice.is-ok", {}, "This machine is ready."),
-      el("ul.checks", {}, checks.map(checkRow)),
-      el("button.mini", { onclick: reloadPreflight }, "Re-check")),
+      el("ul.checks", {}, checks.map(checkRow))),
 
     // Every step navigates through selectPanel, exactly as clicking the tab
     // does. Setting state.panel directly skipped the panel's load-on-arrival:
@@ -62,7 +65,8 @@ export function renderSetup(host) {
 
     el("section.step", {},
       el("h3", {}, "3 · Connect GitHub"),
-      el("button.act", { onclick: () => selectPanel("providers") }, "Open Providers")),
+      el("p", {}, "Optional. Lets agents read repositories and open pull requests, through the gateway's approval checks."),
+      el("button.act", { onclick: () => selectPanel("providers") }, "Connect GitHub")),
 
     el("section.step", {},
       el("h3", {}, "4 · Your first project"),

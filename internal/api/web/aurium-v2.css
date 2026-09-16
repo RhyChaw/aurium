@@ -339,3 +339,16 @@ kbd { color: var(--muted); border-color: var(--border-strong); }
    decorated with an absence. (views/rail.js already returns null; this
    guards against a placeholder creeping back in.) */
 .pr:empty { display: none; }
+
+/* ---------------------------------------------------------- setup wizard */
+
+/* The wizard was a 720px column on a 1500px screen, so two thirds of the
+   window was empty while the check list wrapped. It is a reading column, not
+   a form: wide enough for a remedy command to sit on one line. */
+.setup { max-width: 940px; }
+
+/* Re-check belongs next to the heading it re-runs. Full-width under the list
+   it read as a disabled input rather than a control. */
+.step-head { display: flex; align-items: baseline; gap: 12px; }
+.step-head h3 { margin: 0; }
+.step-head .mini { margin-left: auto; }

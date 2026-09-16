@@ -203,11 +203,7 @@ func Checks(addr string) []Check {
 			Name:     "go",
 			Severity: Required,
 			Probe: func(ctx context.Context) error {
-				out, err := exec.CommandContext(ctx, "go", "version").Output()
-				if err != nil {
-					return BinaryWorks(ctx, "go", "version")
-				}
-				return GoVersionAtLeast(string(out), 1, 25)
+				return goWorks(ctx)
 			},
 			Remedy: goRemedy(),
 		},
@@ -329,6 +325,40 @@ func auriumHome() (string, error) {
 	return filepath.Join(h, ".aurium"), nil
 }
 
+// goInstallPath is where setup.sh puts the toolchain it installs. The probe
+// looks here as well as on PATH, because a daemon does not inherit a login
+// shell's environment: launched from the app bundle, or from a terminal opened
+// before the profile line was added, PATH lacks this directory while the
+// toolchain sits in it perfectly usable.
+//
+// Reporting "not installed" for software this project's own installer placed
+// is the `ok git` mistake inverted — a check answering a different question
+// than the one it prints.
+func goInstallPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".local", "go", "bin", "go")
+}
+
+// goWorks judges the toolchain by running it, on PATH first and then where
+// setup.sh installs. Either one satisfies the requirement: what matters is
+// that a usable go exists, not which directory it was found in.
+func goWorks(ctx context.Context) error {
+	if out, err := exec.CommandContext(ctx, "go", "version").Output(); err == nil {
+		return GoVersionAtLeast(string(out), 1, 25)
+	}
+	if p := goInstallPath(); p != "" {
+		if out, err := exec.CommandContext(ctx, p, "version").Output(); err == nil {
+			return GoVersionAtLeast(string(out), 1, 25)
+		}
+	}
+	// Neither worked. Report the PATH attempt, since that is the one whose
+	// failure the user can act on.
+	return BinaryWorks(ctx, "go", "version")
+}
+
 // goRemedy tells a contributor what to actually do about a failing "go"
 // check, and that depends on which of two very different things is true.
 // Both are Manual: PATH lives in a shell profile that is not this tool's to
@@ -351,13 +381,12 @@ func goRemedy() Remedy {
 			Note:    "installs a checksum-verified go1.27.1 into ~/.local/go without sudo",
 		}
 	}
-	if home, err := os.UserHomeDir(); err == nil {
-		candidate := filepath.Join(home, ".local", "go", "bin", "go")
+	if candidate := goInstallPath(); candidate != "" {
 		if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
 			return Remedy{
 				Kind:    Manual,
 				Command: `export PATH="$HOME/.local/go/bin:$PATH"`,
-				Note:    "setup.sh already installed go1.27.1 there; add this line to your shell profile to make it permanent",
+				Note:    "setup.sh already installed go1.27.1 there; add this line to your shell profile so a new shell finds it too",
 			}
 		}
 	}
