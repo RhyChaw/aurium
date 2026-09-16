@@ -58,7 +58,7 @@
     <div style="position:relative;max-width:1220px;margin:0 auto;padding:70px 32px 0;display:flex;flex-direction:column;gap:32px">
       <span style="font:500 10px/1 'IBM Plex Mono';letter-spacing:.26em;text-transform:uppercase;color:#7A5510">No. 01 · the fleet</span>
 
-      <h1 style="margin:0;font:400 clamp(48px,9vw,124px)/.9 'Instrument Serif',serif;letter-spacing:-.024em;max-width:14ch;text-wrap:pretty">Thirty agents.<br><em style="font-style:italic;background:linear-gradient(180deg,#8A6212 0%,#C68F2C 34%,#F5C35A 62%,#C68F2C 100%);background-size:100% 260%;animation:pour 12s ease-in-out infinite alternate;-webkit-background-clip:text;background-clip:text;color:transparent">One</em> screen.</h1>
+      <h1 style="margin:0;font:400 clamp(48px,9vw,124px)/.9 'Instrument Serif',serif;letter-spacing:-.024em;max-width:14ch;text-wrap:pretty">Multiple agents.<br><em style="font-style:italic;background:linear-gradient(180deg,#8A6212 0%,#C68F2C 34%,#F5C35A 62%,#C68F2C 100%);background-size:100% 260%;animation:pour 12s ease-in-out infinite alternate;-webkit-background-clip:text;background-clip:text;color:transparent">One</em> screen.</h1>
 
       <div style="height:1px;background:#16140F;max-width:200px"></div>
 
@@ -384,7 +384,7 @@
   <!-- PROBLEM -->
   <div style="border-bottom:1px solid #16140F;background:#EFEADF">
     <div style="max-width:1220px;margin:0 auto;padding:64px 32px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:48px;align-items:start">
-      <h2 style="margin:0;font:400 clamp(30px,4.6vw,50px)/1.06 'Instrument Serif',serif;max-width:20ch;text-wrap:pretty">One agent is a chat window. Thirty is an operations problem.</h2>
+      <h2 style="margin:0;font:400 clamp(30px,4.6vw,50px)/1.06 'Instrument Serif',serif;max-width:20ch;text-wrap:pretty">One agent is a chat window. A fleet is an operations problem.</h2>
       <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
         <p style="margin:0;font:400 15.5px/1.68 'IBM Plex Sans';color:#3A362D;max-width:54ch;text-wrap:pretty">Running agents in parallel is the easy half. Knowing what they are all doing is the half nobody built. Aurium is a daemon that owns the fleet, containers and branches and context and credentials and spend, plus a window that makes the fleet legible at a glance.</p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:0;border-top:1px solid #16140F">
@@ -486,9 +486,10 @@
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(296px,1fr));gap:15px">
         <div style="border:1px solid #6B5220;background:linear-gradient(180deg,rgba(245,195,90,.12),#1D1A13);padding:26px;display:flex;flex-direction:column;gap:17px;box-shadow:0 24px 64px -32px rgba(245,195,90,.45)">
-          <div style="display:flex;align-items:baseline;gap:10px"><h3 style="margin:0;font:600 20px/1 'IBM Plex Sans';color:#FFE9A8">macOS</h3><span style="font:400 10.5px/1 'IBM Plex Mono';color:#C68F2C">Apple Silicon or Intel · Docker</span></div>
+          <div style="display:flex;align-items:baseline;gap:10px"><h3 style="margin:0;font:600 20px/1 'IBM Plex Sans';color:#FFE9A8">macOS</h3><span style="font:400 10.5px/1 'IBM Plex Mono';color:#C68F2C">Apple Silicon · Docker</span></div>
           <div style="display:flex;flex-direction:column;gap:9px">
-            <a href="https://github.com/RhyChaw/aurium" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';background:linear-gradient(180deg,#FFF6DC,#FFE9A8 22%,#D8A038 68%,#A87A22);background-size:100% 220%;animation:melt 8s ease-in-out infinite alternate;color:#2A1C05;padding:16px 18px;border:none">Clone the repo<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';opacity:.72">arm64 or Intel</span></a>
+            <a href="https://github.com/RhyChaw/aurium/releases/latest" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';background:linear-gradient(180deg,#FFF6DC,#FFE9A8 22%,#D8A038 68%,#A87A22);background-size:100% 220%;animation:melt 8s ease-in-out infinite alternate;color:#2A1C05;padding:16px 18px;border:none">Download the .dmg<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';opacity:.72">Apple Silicon</span></a>
+            <a href="https://github.com/RhyChaw/aurium" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A3510;padding:16px 18px">Clone the repo<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">Intel · build from source</span></a>
             <a href="https://github.com/RhyChaw/aurium#run-it" style="display:flex;align-items:center;gap:10px;font:600 13.5px/1 'IBM Plex Sans';color:#F7F4EE;border:1px solid #4A3510;padding:16px 18px">Setup guide<span style="margin-left:auto;font:400 10.5px 'IBM Plex Mono';color:#BDB6A6">README</span></a>
           </div>
           <div style="border-top:1px solid #332F26;padding-top:14px;font:400 11.5px/1 'IBM Plex Mono';color:#BDB6A6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:#F5C35A">$ </span>./setup.sh</div>
@@ -555,7 +556,7 @@
 </div>
 
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;version&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;0.1.0-dev&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;stars&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;1&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;version&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;0.1.1&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;stars&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;1&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
 class Component extends DCLogic {
   renderVals() {
     let s = 3310099;
@@ -713,7 +714,7 @@ class Component extends DCLogic {
     ].map(([tag, tagColor, title, body, cta, href]) => ({ tag, tagColor, title, body, cta, href }));
 
     return {
-      version: this.props.version ?? "0.1.0-dev",
+      version: this.props.version ?? "0.1.1",
       stars: this.props.stars ?? "1",
       lanes, marquee, projects, tiles, term, facts, pillars, approvals, useCases, steps, asks,
     };
